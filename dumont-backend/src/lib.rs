@@ -3,7 +3,10 @@ pub use dumont_backend_base::{BackendDataStore, DataStoreError};
 use dumont_backend_sqlite::SqlLiteDataStore;
 use std::ops::Deref;
 
-use dumont_models::{models::Organization, operations::CreateOrganization};
+use dumont_models::{
+    models::{Organization, Repository},
+    operations::{CreateOrganization, CreateRepository, GetRepository},
+};
 
 pub enum DataStore {
     SqlLite(SqlLiteDataStore),
@@ -36,5 +39,13 @@ impl BackendDataStore for DataStore {
 
     async fn get_organizations(&self) -> Result<Vec<Organization>, DataStoreError> {
         self.deref().get_organizations().await
+    }
+
+    async fn create_repo(&self, entity: &CreateRepository) -> Result<Repository, DataStoreError> {
+        self.deref().create_repo(&entity).await
+    }
+
+    async fn get_repo(&self, entity: &GetRepository) -> Result<Option<Repository>, DataStoreError> {
+        self.deref().get_repo(entity).await
     }
 }

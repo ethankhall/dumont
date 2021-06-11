@@ -7,22 +7,17 @@ CREATE TABLE repository(
     repo_id INTEGER PRIMARY KEY NOT NULL,
     org_id INTEGER NOT NULL,
     repo_name TEXT NOT NULL,
+    url TEXT,
     UNIQUE(org_id, repo_name)
 );
 
-CREATE TABLE repository_metadata(
+CREATE TABLE repository_labels(
     id INTEGER PRIMARY KEY NOT NULL,
     repo_id INTEGER NOT NULL,
-    meta_key TEXT NOT NULL,
-    meta_value TEXT NOT NULL,
-    UNIQUE(repo_id, meta_key)
-);
-
-CREATE TABLE repository_tags(
-    id INTEGER PRIMARY KEY NOT NULL,
-    repo_id INTEGER NOT NULL,
-    tag TEXT NOT NULL,
-    UNIQUE(repo_id, tag)
+    label_name TEXT NOT NULL,
+    label_value TEXT NOT NULL,
+    created_at DATETIME NOT NULL,
+    UNIQUE(repo_id, label_name)
 );
 
 CREATE TABLE repository_revision(
@@ -33,10 +28,11 @@ CREATE TABLE repository_revision(
     UNIQUE(repo_id, scm_tag)
 );
 
-CREATE TABLE repository_revision_state(
-    revision_state_id INTEGER PRIMARY KEY NOT NULL,
+CREATE TABLE repository_revision_labels(
+    id INTEGER PRIMARY KEY NOT NULL,
     repo_id INTEGER NOT NULL,
-    revision_id TEXT NOT NULL,
-    state_name TEXT NOT NULL,
-    created_at DATETIME NOT NULL
+    label_name TEXT NOT NULL,
+    label_value TEXT NOT NULL,
+    created_at DATETIME NOT NULL,
+    UNIQUE(repo_id, label_name)
 );

@@ -18,3 +18,4 @@ dumont-models = { path = "../dumont-models" }
 thiserror = "1.0"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
+sqlx = { version = "0.5" }

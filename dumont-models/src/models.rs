@@ -9,13 +9,16 @@ pub struct Organization {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Repository {
+    #[serde(skip_serializing)]
     pub id: i64,
     pub organization: Organization,
     pub name: String,
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RepositoryMetadata {
+    #[serde(skip_serializing)]
     pub id: i64,
     pub repo: Repository,
     pub key: String,
@@ -24,6 +27,7 @@ pub struct RepositoryMetadata {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RepositoryTag {
+    #[serde(skip_serializing)]
     pub id: i64,
     pub repo: Repository,
     pub tag: String,
@@ -31,6 +35,7 @@ pub struct RepositoryTag {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RepositoryRevision {
+    #[serde(skip_serializing)]
     pub id: i64,
     pub repo: Repository,
     pub revision_name: String,

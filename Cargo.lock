@@ -311,6 +311,7 @@ dependencies = [
  "dumont-models",
  "serde",
  "serde_json",
+ "sqlx",
  "thiserror",
  "tokio",
  "tracing",
