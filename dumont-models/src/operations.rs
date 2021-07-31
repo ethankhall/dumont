@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub type GetOrganization = CreateRepository;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateOrganization {
     pub organization: String,

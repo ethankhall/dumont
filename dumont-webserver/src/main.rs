@@ -5,7 +5,7 @@ use tracing::Level;
 use tracing_subscriber::{fmt::format::FmtSpan, FmtSubscriber};
 use warp::Filter;
 
-pub type Db = Arc<dumont_backend::DataStore>;
+pub type Db = Arc<Box<dyn dumont_backend::DataStore>>;
 
 #[derive(Clap, Debug)]
 #[clap(author, about, version)]
@@ -16,29 +16,27 @@ pub struct Opts {
 
 #[derive(Clap, Debug)]
 pub enum DataStoreTarget {
-    /// Connect to a SQLite Database
-    #[clap(name = "sqlite")]
-    SqLite(SqLiteArgs),
+    /// Create an in-memory database
+    #[clap(name = "mem")]
+    Memory(MemoryArgs),
 }
 
 impl DataStoreTarget {
     async fn into_backend(self) -> Db {
         match &self {
-            DataStoreTarget::SqLite(args) => Arc::new(args.as_backend().await),
+            DataStoreTarget::Memory(args) => Arc::new(args.as_backend().await),
         }
     }
 }
 
 #[derive(Clap, Debug)]
-pub struct SqLiteArgs {
-    database_url: String,
+pub struct MemoryArgs {
 }
 
-impl SqLiteArgs {
-    async fn as_backend(&self) -> DataStore {
-        let database_url = &self.database_url;
-        let url = &database_url["sqlite".len()..];
-        return DataStore::create_sqlite(url).await;
+impl MemoryArgs {
+    async fn as_backend(&self) -> Box<dyn DataStore> {
+        use dumont_backend::MemDataStore;
+        return Box::new(MemDataStore::default());
     }
 }
 
@@ -72,7 +70,6 @@ async fn main() {
 
 mod filters {
     use super::canned_response::EntityCretionFailed;
-    use dumont_backend::BackendDataStore;
     use dumont_models::operations::CreateOrganization;
     use serde::de::DeserializeOwned;
     use warp::Rejection;

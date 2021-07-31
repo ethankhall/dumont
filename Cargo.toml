@@ -3,5 +3,5 @@
 members = [
     "dumont-bin",
     "dumont-backend",
-    "dumont-backend-sqlite",
+    "dumont-backend-mem",
 ]

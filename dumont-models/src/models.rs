@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Organization {
     #[serde(skip_serializing)]
     pub id: i64,
     pub name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Repository {
     #[serde(skip_serializing)]
     pub id: i64,
@@ -16,7 +16,7 @@ pub struct Repository {
     pub url: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RepositoryMetadata {
     #[serde(skip_serializing)]
     pub id: i64,
@@ -25,7 +25,7 @@ pub struct RepositoryMetadata {
     pub value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RepositoryTag {
     #[serde(skip_serializing)]
     pub id: i64,
