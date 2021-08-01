@@ -135,7 +135,7 @@ impl DataStore for MemDataStore {
         &self,
         org_name: &str,
         repo_name: &str,
-    ) -> Result<Option<DataStoreRepository>, DataStoreError> {
+    ) -> Result<DataStoreRepository, DataStoreError> {
         let key = format!("{}:{}", org_name, repo_name);
 
         let repos = self.repos.lock().unwrap();
@@ -154,6 +154,6 @@ impl DataStore for MemDataStore {
             }
         };
 
-        Ok(Some(repo.into_repo(&org)))
+        Ok(repo.into_repo(&org))
     }
 }

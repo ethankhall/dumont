@@ -55,5 +55,5 @@ pub trait DataStore: Sync + Send {
         &self,
         org_name: &str,
         repo_name: &str,
-    ) -> Result<Option<DataStoreRepository>, DataStoreError>;
+    ) -> Result<DataStoreRepository, DataStoreError>;
 }

@@ -7,8 +7,8 @@ pub async fn create_filters(
     db: Db,
 ) -> impl Filter<Extract = impl warp::Reply> + Clone + Send + Sync + 'static {
     filters::api(db)
-        .with(warp::trace::request())
         .recover(canned_response::handle_rejection)
+        .with(warp::trace::request())
 }
 
 mod filters {
@@ -40,13 +40,13 @@ mod filters {
             .or(get_orgs(db.clone()))
             .or(create_repo(db.clone()))
             .or(get_repos(db.clone()))
-            .boxed()
+            .or(get_repo(db.clone()))
     }
 
     fn create_org(
         db: crate::Db,
     ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        info!("Adding API Path: POST /api/orgs");
+        info!("POST /api/orgs");
         warp::path!("api" / "orgs")
             .and(warp::post())
             .and(json_body::<CreateOrganization>())
@@ -66,6 +66,7 @@ mod filters {
     fn get_orgs(
         db: crate::Db,
     ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+        info!("GET /api/orgs");
         warp::path!("api" / "orgs")
             .and(warp::get())
             .and(with_db(db))
@@ -82,6 +83,7 @@ mod filters {
     fn create_repo(
         db: crate::Db,
     ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+        info!("POST /api/orgs/{{org}}/repos");
         warp::path!("api" / "orgs" / String / "repos")
             .and(warp::post())
             .and(json_body::<CreateRepository>())
@@ -101,16 +103,33 @@ mod filters {
     fn get_repos(
         db: crate::Db,
     ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+        info!("GET /api/orgs/{{org}}/repos");
         warp::path!("api" / "orgs" / String / "repos")
+            .and(warp::get())
+            .and(with_db(db))
+            .and_then(get_repos_impl)
+    }
+
+    async fn get_repos_impl(org: String, db: crate::Db) -> Result<impl Reply, Rejection> {
+        let result = db.get_repos(&org).await;
+        let result: Result<Vec<GetRepository>, DataStoreError> =
+            result.map(|repo_list| repo_list.repos.iter().map(GetRepository::from).collect());
+        wrap_body(result.map_err(ApplicationError::from_context))
+    }
+
+    fn get_repo(
+        db: crate::Db,
+    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+        info!("GET /api/repos/{{org}}/{{repo}}");
+        warp::path!("api" / "repos" / String / String)
             .and(warp::get())
             .and(with_db(db))
             .and_then(get_repo_impl)
     }
 
-    async fn get_repo_impl(org: String, db: crate::Db) -> Result<impl Reply, Rejection> {
-        let result = db.get_repos(&org).await;
-        let result: Result<Vec<GetRepository>, DataStoreError> =
-            result.map(|repo_list| repo_list.repos.iter().map(GetRepository::from).collect());
+    async fn get_repo_impl(org: String, repo: String, db: crate::Db) -> Result<impl Reply, Rejection> {
+        let result = db.get_repo(&org, &repo).await;
+        let result: Result<GetRepository, DataStoreError> = result.map(GetRepository::from);
         wrap_body(result.map_err(ApplicationError::from_context))
     }
 

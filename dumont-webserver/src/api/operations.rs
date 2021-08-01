@@ -37,3 +37,13 @@ impl From<&crate::backend::models::DataStoreRepository> for GetRepository {
         }
     }
 }
+
+impl From<crate::backend::models::DataStoreRepository> for GetRepository {
+    fn from(model: crate::backend::models::DataStoreRepository) -> Self {
+        Self {
+            org: model.organization.name.clone(),
+            repo: model.name.clone(),
+            url: model.url.clone(),
+        }
+    }
+}
