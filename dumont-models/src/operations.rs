@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub type GetOrganization = CreateRepository;
+pub type GetOrganization = CreateOrganization;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateOrganization {
@@ -9,7 +9,6 @@ pub struct CreateOrganization {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateRepository {
-    pub organization: String,
     pub repository: String,
     pub url: Option<String>,
 }
@@ -18,4 +17,5 @@ pub struct CreateRepository {
 pub struct GetRepository {
     pub organization: String,
     pub repository: String,
+    pub url: Option<String>,
 }

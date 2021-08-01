@@ -1,21 +1,20 @@
 mod db_models;
 
+use super::{DataStore, DataStoreError};
 use async_trait::async_trait;
 use db_models::{OrganizationDbModel, RepoDbModel};
-use dumont_backend_base::{DataStore, DataStoreError};
 use dumont_models::{
     models::{Organization, Repository},
     operations::{CreateOrganization, CreateRepository, GetRepository},
 };
-use sqlx::{Sqlite, Pool};
-use tracing::{info, trace};
-use std::sync::{Arc, Mutex};
+use sqlx::{Pool, Sqlite};
 use std::ops::DerefMut;
+use std::sync::{Arc, Mutex};
+use tracing::{info, trace};
 
 pub struct SqlLiteDataStore {
     // tx: Arc<Mutex<sqlx::Transaction<'a, Sqlite>>>,
 }
-
 
 impl SqlLiteDataStore {
     async fn _get_org_by_name<'a>(
@@ -71,7 +70,6 @@ impl DataStore<Sqlite> for SqlLiteDataStore {
         tx: &mut sqlx::Transaction<'b, Sqlite>,
         entity: &CreateOrganization,
     ) -> Result<Organization, DataStoreError> {
-
         let result = sqlx::query_as!(
             OrganizationDbModel,
             "INSERT INTO orginization (org_name) VALUES (?1)",
@@ -86,7 +84,10 @@ impl DataStore<Sqlite> for SqlLiteDataStore {
         Ok(OrganizationDbModel::into_org(&org))
     }
 
-    async fn get_organizations<'b>(&self, tx: &mut sqlx::Transaction<'b, Sqlite>,) -> Result<Vec<Organization>, DataStoreError> {
+    async fn get_organizations<'b>(
+        &self,
+        tx: &mut sqlx::Transaction<'b, Sqlite>,
+    ) -> Result<Vec<Organization>, DataStoreError> {
         let orgs = sqlx::query_as!(
             OrganizationDbModel,
             "SELECT org_id, org_name FROM `orginization`"
@@ -98,10 +99,12 @@ impl DataStore<Sqlite> for SqlLiteDataStore {
         Ok(orgs.iter().map(OrganizationDbModel::into_org).collect())
     }
 
-    async fn create_repo<'b>(&self, tx: &sqlx::Transaction<'b, Sqlite>, entity: &CreateRepository) -> Result<Repository, DataStoreError> {
-        let org = self
-            ._get_org_by_name(&mut tx, &entity.organization)
-            .await?;
+    async fn create_repo<'b>(
+        &self,
+        tx: &sqlx::Transaction<'b, Sqlite>,
+        entity: &CreateRepository,
+    ) -> Result<Repository, DataStoreError> {
+        let org = self._get_org_by_name(&mut tx, &entity.organization).await?;
 
         let repo = sqlx::query_as!(
             OrganizationDbModel,
@@ -114,11 +117,17 @@ impl DataStore<Sqlite> for SqlLiteDataStore {
         .await?;
 
         trace!("New entity created. ID {}", repo.last_insert_rowid());
-        let repo = self._get_repo_by_id(&mut tx, repo.last_insert_rowid()).await?;
+        let repo = self
+            ._get_repo_by_id(&mut tx, repo.last_insert_rowid())
+            .await?;
         Ok(RepoDbModel::into_repo(&org, &repo))
     }
 
-    async fn get_repo<'b>(&self, tx: &mut sqlx::Transaction<'b, Sqlite>, entity: &GetRepository) -> Result<Option<Repository>, DataStoreError> {
+    async fn get_repo<'b>(
+        &self,
+        tx: &mut sqlx::Transaction<'b, Sqlite>,
+        entity: &GetRepository,
+    ) -> Result<Option<Repository>, DataStoreError> {
         let resp = sqlx::query!(
             r#"SELECT r.repo_id, r.repo_name, r.url, o.org_id, o.org_name 
                 FROM repository r 

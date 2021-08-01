@@ -1,7 +1,5 @@
 [workspace]
 
 members = [
-    "dumont-bin",
-    "dumont-backend",
-    "dumont-backend-mem",
+    "dumont-webserver",
 ]
