@@ -18,7 +18,7 @@ impl From<&crate::backend::models::DataStoreOrganization> for GetOrganization {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum VersionScheme {
     Serial,
-    Semver
+    Semver,
 }
 
 impl Default for VersionScheme {

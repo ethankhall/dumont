@@ -4,7 +4,7 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DbOrganization {
     pub org_id: i32,
-    pub org_name: String
+    pub org_name: String,
 }
 
 impl From<super::entity::organization::Model> for DbOrganization {
@@ -15,7 +15,6 @@ impl From<super::entity::organization::Model> for DbOrganization {
         }
     }
 }
-
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct DbRepo {
@@ -31,10 +30,11 @@ impl DbRepo {
             org,
             repo_id: repo.repo_id,
             repo_name: repo.repo_name,
-            version_schema: VersionScheme::from_str(&repo.version_strategy).expect("Valid version schema"),
+            version_schema: VersionScheme::from_str(&repo.version_strategy)
+                .expect("Valid version schema"),
         }
     }
-} 
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct UpdateRepoSetting {

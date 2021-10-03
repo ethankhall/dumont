@@ -5,8 +5,7 @@ use models::*;
 use thiserror::Error;
 use tracing::error;
 
-use crate::database::{PostresDatabase, DatabaseError};
-
+use crate::database::{DatabaseError, PostresDatabase};
 
 #[derive(Error, Debug)]
 pub enum BackendError {
@@ -27,13 +26,13 @@ pub enum BackendError {
 // }
 
 pub struct DefaultBackend {
-    database: PostresDatabase
+    database: PostresDatabase,
 }
 
 impl DefaultBackend {
     pub async fn new(db_connection_string: String) -> Result<Self, BackendError> {
         Ok(Self {
-            database: PostresDatabase::new(db_connection_string).await?
+            database: PostresDatabase::new(db_connection_string).await?,
         })
     }
     pub async fn create_organization(

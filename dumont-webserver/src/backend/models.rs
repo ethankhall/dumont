@@ -5,7 +5,7 @@ pub enum VersionScheme {
     #[strum(serialize = "serial")]
     Serial,
     #[strum(serialize = "semver")]
-    Semver
+    Semver,
 }
 
 #[derive(Debug, Clone)]

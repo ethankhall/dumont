@@ -1,5 +1,5 @@
 use crate::backend::DefaultBackend;
-use clap::{AppSettings, Clap, ArgGroup};
+use clap::{AppSettings, ArgGroup, Clap};
 use std::sync::Arc;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
@@ -50,13 +50,17 @@ pub enum MainOperation {
 pub struct RunWebServerArgs {
     /// Database Connection String
     #[clap(long = "database-url", env = "DB_CONNECTION")]
-    db_connection_string: String
+    db_connection_string: String,
 }
 
 #[derive(Clap, Debug)]
 pub struct RuntimeArgs {
     /// The URL to publish metrics to.
-    #[clap(long = "open-telem-collector", env = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", default_value("http://localhost:4317"))]
+    #[clap(
+        long = "open-telem-collector",
+        env = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+        default_value("http://localhost:4317")
+    )]
     otel_collector: String,
 }
 
@@ -93,7 +97,7 @@ impl From<LoggingOpts> for LevelFilter {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), anyhow::Error>{
+async fn main() -> Result<(), anyhow::Error> {
     dotenv::dotenv().ok();
 
     let opt = Opts::parse();
@@ -139,7 +143,6 @@ async fn main() -> Result<(), anyhow::Error>{
 }
 
 async fn run_webserver(args: RunWebServerArgs) -> Result<(), anyhow::Error> {
-    
     let db = Arc::new(backend::DefaultBackend::new(args.db_connection_string).await?);
 
     let filters = api::create_filters(db).await;

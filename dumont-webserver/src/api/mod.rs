@@ -13,11 +13,13 @@ pub async fn create_filters(
 
 mod filters {
     use super::canned_response::ApplicationError;
-    use super::operations::{CreateOrganization, CreateRepository, GetOrganization, GetRepository, VersionScheme};
+    use super::operations::{
+        CreateOrganization, CreateRepository, GetOrganization, GetRepository, VersionScheme,
+    };
     use crate::backend::BackendError;
     use serde::{de::DeserializeOwned, Serialize};
-    use warp::{reject::Reject, Reply, Filter, Rejection};
     use tracing::info;
+    use warp::{reject::Reject, Filter, Rejection, Reply};
 
     fn wrap_body<T>(body: Result<T, impl Reject>) -> Result<impl Reply, Rejection>
     where
@@ -33,9 +35,7 @@ mod filters {
         Ok(warp::reply::json(&body))
     }
 
-    pub fn api(
-        db: crate::Db,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    pub fn api(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         create_org(db.clone())
             .or(get_orgs(db.clone()))
             .or(create_repo(db.clone()))
@@ -43,9 +43,7 @@ mod filters {
             .or(get_repo(db.clone()))
     }
 
-    fn create_org(
-        db: crate::Db,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    fn create_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         info!("POST /api/orgs");
         warp::path!("api" / "orgs")
             .and(warp::post())
@@ -63,9 +61,7 @@ mod filters {
         wrap_body(result.map_err(ApplicationError::from_context))
     }
 
-    fn get_orgs(
-        db: crate::Db,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    fn get_orgs(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         info!("GET /api/orgs");
         warp::path!("api" / "orgs")
             .and(warp::get())
@@ -80,9 +76,7 @@ mod filters {
         wrap_body(result.map_err(ApplicationError::from_context))
     }
 
-    fn create_repo(
-        db: crate::Db,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    fn create_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         info!("POST /api/orgs/{{org}}/repos");
         warp::path!("api" / "orgs" / String / "repos")
             .and(warp::post())
@@ -100,14 +94,14 @@ mod filters {
             VersionScheme::Serial => crate::backend::models::VersionScheme::Serial,
             VersionScheme::Semver => crate::backend::models::VersionScheme::Semver,
         };
-        let result = db.create_repo(&org, &repo.repo, &repo.url, backend_scheme).await;
+        let result = db
+            .create_repo(&org, &repo.repo, &repo.url, backend_scheme)
+            .await;
         let result = result.map(GetRepository::from);
         wrap_body(result.map_err(ApplicationError::from_context))
     }
 
-    fn get_repos(
-        db: crate::Db,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    fn get_repos(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         info!("GET /api/orgs/{{org}}/repos");
         warp::path!("api" / "orgs" / String / "repos")
             .and(warp::get())
@@ -122,9 +116,7 @@ mod filters {
         wrap_body(result.map_err(ApplicationError::from_context))
     }
 
-    fn get_repo(
-        db: crate::Db,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    fn get_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         info!("GET /api/repos/{{org}}/{{repo}}");
         warp::path!("api" / "repos" / String / String)
             .and(warp::get())
@@ -132,7 +124,11 @@ mod filters {
             .and_then(get_repo_impl)
     }
 
-    async fn get_repo_impl(org: String, repo: String, db: crate::Db) -> Result<impl Reply, Rejection> {
+    async fn get_repo_impl(
+        org: String,
+        repo: String,
+        db: crate::Db,
+    ) -> Result<impl Reply, Rejection> {
         let result = db.get_repo(&org, &repo).await;
         let result: Result<GetRepository, BackendError> = result.map(GetRepository::from);
         wrap_body(result.map_err(ApplicationError::from_context))
@@ -159,7 +155,7 @@ mod canned_response {
     use std::convert::Infallible;
     use std::error::Error;
     use tracing::error;
-    use warp::{http::StatusCode, Rejection, Reply, reject::Reject};
+    use warp::{http::StatusCode, reject::Reject, Rejection, Reply};
 
     #[derive(Debug)]
     pub struct ApplicationError {
@@ -194,9 +190,7 @@ mod canned_response {
         pub message: JsonValue,
     }
 
-    pub async fn handle_rejection(
-        err: Rejection,
-    ) -> std::result::Result<impl Reply, Infallible> {
+    pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
         if err.is_not_found() {
             return to_error_message(StatusCode::NOT_FOUND, serde_json::json!("NOT_FOUND"));
         } else if let Some(response) = err.find::<ApplicationError>() {
