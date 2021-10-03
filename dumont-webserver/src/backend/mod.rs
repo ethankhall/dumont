@@ -1,59 +1,78 @@
 pub mod models;
 
 use async_trait::async_trait;
-pub use memory::MemDataStore;
 use models::*;
 use thiserror::Error;
 use tracing::error;
 
-mod memory;
-#[cfg(feature = "postgres")]
-mod postgres;
+use crate::database::{PostresDatabase, DatabaseError};
+
 
 #[derive(Error, Debug)]
-pub enum DataStoreError {
+pub enum BackendError {
     #[error("{id} not found")]
     NotFound { id: String },
     #[error(transparent)]
-    BackendError {
+    DatabaseError {
         #[from]
-        source: anyhow::Error,
+        source: DatabaseError,
     },
 }
 
-// impl From<sqlx::Error> for DataStoreError {
+// impl From<sqlx::Error> for BackendError {
 //     fn from(e: sqlx::Error) -> Self {
 //         error!("Unable to exec SQL: {:?}", e);
-//         DataStoreError::BackendError { source: e.into() }
+//         BackendError::BackendError { source: e.into() }
 //     }
 // }
 
-#[async_trait]
-pub trait DataStore: Sync + Send {
-    async fn create_organization(
+pub struct DefaultBackend {
+    database: PostresDatabase
+}
+
+impl DefaultBackend {
+    pub async fn new(db_connection_string: String) -> Result<Self, BackendError> {
+        Ok(Self {
+            database: PostresDatabase::new(db_connection_string).await?
+        })
+    }
+    pub async fn create_organization(
         &self,
         org_name: &str,
-    ) -> Result<DataStoreOrganization, DataStoreError>;
+    ) -> Result<DataStoreOrganization, BackendError> {
+        unimplemented!();
+    }
 
-    async fn get_organizations(&self) -> Result<DataStoreOrganizationList, DataStoreError>;
+    pub async fn get_organizations(&self) -> Result<DataStoreOrganizationList, BackendError> {
+        unimplemented!();
+    }
 
-    async fn get_organization(
+    pub async fn get_organization(
         &self,
         org_name: &str,
-    ) -> Result<DataStoreOrganization, DataStoreError>;
+    ) -> Result<DataStoreOrganization, BackendError> {
+        unimplemented!();
+    }
 
-    async fn create_repo(
+    pub async fn create_repo(
         &self,
         org_name: &str,
         repo_name: &str,
         repo_url: &Option<String>,
-    ) -> Result<DataStoreRepository, DataStoreError>;
+        version: VersionScheme,
+    ) -> Result<DataStoreRepository, BackendError> {
+        unimplemented!();
+    }
 
-    async fn get_repos(&self, org_name: &str) -> Result<DataStoreRepositoryList, DataStoreError>;
+    pub async fn get_repos(&self, org_name: &str) -> Result<DataStoreRepositoryList, BackendError> {
+        unimplemented!();
+    }
 
-    async fn get_repo(
+    pub async fn get_repo(
         &self,
         org_name: &str,
         repo_name: &str,
-    ) -> Result<DataStoreRepository, DataStoreError>;
+    ) -> Result<DataStoreRepository, BackendError> {
+        unimplemented!();
+    }
 }

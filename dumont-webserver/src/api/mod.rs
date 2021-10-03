@@ -13,8 +13,8 @@ pub async fn create_filters(
 
 mod filters {
     use super::canned_response::ApplicationError;
-    use super::operations::{CreateOrganization, CreateRepository, GetOrganization, GetRepository};
-    use crate::backend::DataStoreError;
+    use super::operations::{CreateOrganization, CreateRepository, GetOrganization, GetRepository, VersionScheme};
+    use crate::backend::BackendError;
     use serde::{de::DeserializeOwned, Serialize};
     use warp::{reject::Reject, Reply, Filter, Rejection};
     use tracing::info;
@@ -75,7 +75,7 @@ mod filters {
 
     async fn get_orgs_impl(db: crate::Db) -> Result<impl Reply, Rejection> {
         let result = db.get_organizations().await;
-        let result: Result<Vec<GetOrganization>, DataStoreError> =
+        let result: Result<Vec<GetOrganization>, BackendError> =
             result.map(|orgs_list| orgs_list.orgs.iter().map(GetOrganization::from).collect());
         wrap_body(result.map_err(ApplicationError::from_context))
     }
@@ -96,7 +96,12 @@ mod filters {
         repo: CreateRepository,
         db: crate::Db,
     ) -> Result<impl Reply, Rejection> {
-        let result = db.create_repo(&org, &repo.repo, &repo.url).await;
+        let backend_scheme = match repo.version_scheme {
+            VersionScheme::Serial => crate::backend::models::VersionScheme::Serial,
+            VersionScheme::Semver => crate::backend::models::VersionScheme::Semver,
+        };
+        let result = db.create_repo(&org, &repo.repo, &repo.url, backend_scheme).await;
+        let result = result.map(GetRepository::from);
         wrap_body(result.map_err(ApplicationError::from_context))
     }
 
@@ -112,7 +117,7 @@ mod filters {
 
     async fn get_repos_impl(org: String, db: crate::Db) -> Result<impl Reply, Rejection> {
         let result = db.get_repos(&org).await;
-        let result: Result<Vec<GetRepository>, DataStoreError> =
+        let result: Result<Vec<GetRepository>, BackendError> =
             result.map(|repo_list| repo_list.repos.iter().map(GetRepository::from).collect());
         wrap_body(result.map_err(ApplicationError::from_context))
     }
@@ -129,7 +134,7 @@ mod filters {
 
     async fn get_repo_impl(org: String, repo: String, db: crate::Db) -> Result<impl Reply, Rejection> {
         let result = db.get_repo(&org, &repo).await;
-        let result: Result<GetRepository, DataStoreError> = result.map(GetRepository::from);
+        let result: Result<GetRepository, BackendError> = result.map(GetRepository::from);
         wrap_body(result.map_err(ApplicationError::from_context))
     }
 
@@ -148,7 +153,7 @@ mod filters {
 }
 
 mod canned_response {
-    use crate::backend::DataStoreError;
+    use crate::backend::BackendError;
     use serde::Serialize;
     use serde_json::Value as JsonValue;
     use std::convert::Infallible;
@@ -163,14 +168,14 @@ mod canned_response {
     }
 
     impl ApplicationError {
-        pub fn from_context(error: DataStoreError) -> Self {
+        pub fn from_context(error: BackendError) -> Self {
             let message = error.to_string();
             match error {
-                DataStoreError::NotFound { id: _ } => Self {
+                BackendError::NotFound { id: _ } => Self {
                     code: StatusCode::NOT_FOUND,
                     message,
                 },
-                DataStoreError::BackendError { source } => {
+                BackendError::DatabaseError { source } => {
                     error!("Internal Error: {}", source);
                     Self {
                         code: StatusCode::INTERNAL_SERVER_ERROR,
