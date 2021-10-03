@@ -25,11 +25,11 @@ pub struct DbRepo {
 }
 
 impl DbRepo {
-    pub fn from(org: DbOrganization, repo: super::entity::repository::Model) -> Self {
+    pub fn from(org: &DbOrganization, repo: &super::entity::repository::Model) -> Self {
         Self {
-            org,
+            org: org.clone(),
             repo_id: repo.repo_id,
-            repo_name: repo.repo_name,
+            repo_name: repo.repo_name.clone(),
             version_schema: VersionScheme::from_str(&repo.version_strategy)
                 .expect("Valid version schema"),
         }
