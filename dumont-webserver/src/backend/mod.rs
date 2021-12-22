@@ -42,7 +42,10 @@ impl DefaultBackend {
         Ok(new_org.into())
     }
 
-    pub async fn get_organizations(&self, pagination: PaginationOptions) -> Result<DataStoreOrganizationList, BackendError> {
+    pub async fn get_organizations(
+        &self,
+        pagination: PaginationOptions,
+    ) -> Result<DataStoreOrganizationList, BackendError> {
         let found_orgs = self.database.list_orgs(pagination).await?;
         Ok(found_orgs.into())
     }
@@ -63,9 +66,16 @@ impl DefaultBackend {
     ) -> Result<DataStoreRepository, BackendError> {
         let org = self.database.find_org(org_name).await?;
         let repo = self.database.create_repo(&org, repo_name).await?;
-        
+
         if let Some(repo_url) = repo_url {
-            self.database.update_repo_metadata(&repo, UpdateRepoMetadata {repo_url: Some(repo_url.to_string())}).await?;
+            self.database
+                .update_repo_metadata(
+                    &repo,
+                    UpdateRepoMetadata {
+                        repo_url: Some(repo_url.to_string()),
+                    },
+                )
+                .await?;
         }
 
         Ok(repo.into())

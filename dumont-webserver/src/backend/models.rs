@@ -1,5 +1,3 @@
-use strum_macros::{Display, EnumString};
-
 #[derive(Debug, Clone)]
 pub struct PaginationOptions {
     pub page_number: usize,
@@ -8,7 +6,10 @@ pub struct PaginationOptions {
 
 impl PaginationOptions {
     pub fn new(page_number: usize, page_size: usize) -> Self {
-        Self { page_number, page_size }
+        Self {
+            page_number,
+            page_size,
+        }
     }
 }
 
@@ -22,7 +23,7 @@ impl From<crate::database::prelude::DbOrganization> for DataStoreOrganization {
     fn from(source: crate::database::prelude::DbOrganization) -> Self {
         Self {
             id: source.org_id,
-            name: source.org_name
+            name: source.org_name,
         }
     }
 }
@@ -31,7 +32,7 @@ impl From<&crate::database::prelude::DbOrganization> for DataStoreOrganization {
     fn from(source: &crate::database::prelude::DbOrganization) -> Self {
         Self {
             id: source.org_id.clone(),
-            name: source.org_name.clone()
+            name: source.org_name.clone(),
         }
     }
 }
@@ -61,7 +62,7 @@ impl From<crate::database::prelude::DbRepo> for DataStoreRepository {
         Self {
             id: source.repo_id,
             organization: source.org.into(),
-            name: source.repo_name
+            name: source.repo_name,
         }
     }
 }

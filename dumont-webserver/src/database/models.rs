@@ -32,7 +32,7 @@ impl DbRepo {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct RepoMetadata {
-    pub repo_url: Option<String>
+    pub repo_url: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

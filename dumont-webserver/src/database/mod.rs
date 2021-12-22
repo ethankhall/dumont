@@ -2,9 +2,9 @@
 mod entity;
 mod models;
 
+mod common_tests;
 mod org_queries;
 mod repo_queries;
-mod common_tests;
 
 use sea_orm::{Database, DatabaseConnection};
 use thiserror::Error;
@@ -59,8 +59,8 @@ pub mod prelude {
     pub use super::entity::prelude::*;
     pub use thiserror::Error;
     pub type DbResult<T> = Result<T, DatabaseError>;
-    pub use super::{AlreadyExistsError, NotFoundError, DatabaseError, PostresDatabase};
+    pub use super::models::*;
     pub use super::org_queries::OrganizationQueries;
     pub use super::repo_queries::RepoQueries;
-    pub use super::models::*;
+    pub use super::{AlreadyExistsError, DatabaseError, NotFoundError, PostresDatabase};
 }

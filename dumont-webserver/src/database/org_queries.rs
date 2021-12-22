@@ -1,18 +1,23 @@
+use super::prelude::*;
+use crate::backend::models::PaginationOptions;
 use crate::database::entity::{self, prelude::*};
 use async_trait::async_trait;
-use super::prelude::*;
-use tracing_attributes::instrument;
 use sea_orm::{entity::*, query::*};
-use crate::backend::models::PaginationOptions;
+use tracing_attributes::instrument;
 
 #[async_trait]
 pub trait OrganizationQueries {
-    async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganization> where T: ToString + Send;
-    async fn find_org<T>(&self, org_name: T) -> DbResult<DbOrganization>  where T: ToString + Send;
+    async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganization>
+    where
+        T: ToString + Send;
+    async fn find_org<T>(&self, org_name: T) -> DbResult<DbOrganization>
+    where
+        T: ToString + Send;
     async fn list_orgs(&self, pagination: PaginationOptions) -> DbResult<Vec<DbOrganization>>;
-    async fn delete_org<T>(&self, org_name: T) -> DbResult<()> where T: ToString + Send;
+    async fn delete_org<T>(&self, org_name: T) -> DbResult<()>
+    where
+        T: ToString + Send;
 }
-
 
 impl From<&entity::organization::Model> for DbOrganization {
     fn from(org: &entity::organization::Model) -> Self {
@@ -26,7 +31,10 @@ impl From<&entity::organization::Model> for DbOrganization {
 #[async_trait]
 impl OrganizationQueries for PostresDatabase {
     #[instrument(level = "debug", fields(org_name = %org_name.to_string()), skip(self, org_name))]
-    async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganization> where T: ToString + Send {
+    async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganization>
+    where
+        T: ToString + Send,
+    {
         use entity::organization::{ActiveModel, Column};
 
         let org_name = org_name.to_string();
@@ -36,9 +44,11 @@ impl OrganizationQueries for PostresDatabase {
             .count(&self.db)
             .await?;
         if resp != 0 {
-            return Err(DatabaseError::AlreadyExists { error: AlreadyExistsError::Organization {
-                org: org_name.clone(),
-            }});
+            return Err(DatabaseError::AlreadyExists {
+                error: AlreadyExistsError::Organization {
+                    org: org_name.clone(),
+                },
+            });
         }
 
         let model = ActiveModel {
@@ -55,7 +65,10 @@ impl OrganizationQueries for PostresDatabase {
     }
 
     #[instrument(level = "debug", fields(org_name = %org_name.to_string()), skip(self, org_name))]
-    async fn delete_org<T>(&self, org_name: T) -> DbResult<()>  where T: ToString + Send {
+    async fn delete_org<T>(&self, org_name: T) -> DbResult<()>
+    where
+        T: ToString + Send,
+    {
         use entity::organization::Column;
         let org_name = org_name.to_string();
 
@@ -65,14 +78,19 @@ impl OrganizationQueries for PostresDatabase {
             .await?;
 
         if resp.rows_affected == 0 {
-            return Err(DatabaseError::NotFound { error: NotFoundError::Organization { org: org_name }});
+            return Err(DatabaseError::NotFound {
+                error: NotFoundError::Organization { org: org_name },
+            });
         }
 
         Ok(())
     }
 
     #[instrument(level = "debug", fields(org_name = %org_name.to_string()), skip(self, org_name))]
-    async fn find_org<T>(&self, org_name: T) -> DbResult<DbOrganization>  where T: ToString + Send {
+    async fn find_org<T>(&self, org_name: T) -> DbResult<DbOrganization>
+    where
+        T: ToString + Send,
+    {
         use entity::organization::Column;
         let org_name = org_name.to_string();
 
@@ -83,7 +101,11 @@ impl OrganizationQueries for PostresDatabase {
 
         let org = match resp {
             Some(org) => org,
-            None => return Err(DatabaseError::NotFound { error: NotFoundError::Organization { org: org_name }}),
+            None => {
+                return Err(DatabaseError::NotFound {
+                    error: NotFoundError::Organization { org: org_name },
+                })
+            }
         };
 
         Ok(DbOrganization::from(org))
@@ -103,7 +125,6 @@ impl OrganizationQueries for PostresDatabase {
     }
 }
 
-
 #[cfg(test)]
 mod integ_test {
     use super::*;
@@ -122,12 +143,16 @@ mod integ_test {
         assert_eq!(found_org.org_name, "foo");
 
         match db.find_org("food".to_owned()).await {
-            Err(DatabaseError::NotFound { error: NotFoundError::Organization { org }}) => assert_eq!(org, "food".to_owned()),
+            Err(DatabaseError::NotFound {
+                error: NotFoundError::Organization { org },
+            }) => assert_eq!(org, "food".to_owned()),
             failed => unreachable!("Should not have gotten {:?}", failed),
         }
 
         match db.create_org("foo".to_owned()).await {
-            Err(DatabaseError::AlreadyExists { error: AlreadyExistsError::Organization { org } }) => {
+            Err(DatabaseError::AlreadyExists {
+                error: AlreadyExistsError::Organization { org },
+            }) => {
                 assert_eq!(org, "foo");
             }
             failed => unreachable!("Should not have gotten {:?}", failed),
@@ -142,7 +167,13 @@ mod integ_test {
         assert_eq!(listed_orgs[1].org_name, "bar");
 
         // Get from page that doesn't exist
-        assert_eq!(db.list_orgs(PaginationOptions::new(1, 50)).await.unwrap().len(), 0);
+        assert_eq!(
+            db.list_orgs(PaginationOptions::new(1, 50))
+                .await
+                .unwrap()
+                .len(),
+            0
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -157,16 +188,16 @@ mod integ_test {
 
         let found_orgs = db.list_orgs(PaginationOptions::new(0, 50)).await.unwrap();
         assert_eq!(found_orgs.len(), 50);
-        
+
         for i in 0..50 {
             assert_eq!(found_orgs[i].org_name, format!("org-{}", i));
         }
 
         let found_orgs = db.list_orgs(PaginationOptions::new(1, 50)).await.unwrap();
         assert_eq!(found_orgs.len(), 50);
-        
+
         for i in 0..50 {
-            assert_eq!(found_orgs[i].org_name, format!("org-{}", i+50));
+            assert_eq!(found_orgs[i].org_name, format!("org-{}", i + 50));
         }
 
         let found_orgs = db.list_orgs(PaginationOptions::new(2, 50)).await.unwrap();

@@ -1,5 +1,5 @@
 use crate::backend::DefaultBackend;
-use clap::{ArgGroup, Subcommand, Args, Parser};
+use clap::{ArgGroup, Args, Parser, Subcommand};
 use std::sync::Arc;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{

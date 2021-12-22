@@ -29,7 +29,10 @@ mod filters {
 
     impl Default for ApiPagination {
         fn default() -> Self {
-            Self { page: Some(0), size: Some(50) }
+            Self {
+                page: Some(0),
+                size: Some(50),
+            }
         }
     }
 
@@ -37,7 +40,7 @@ mod filters {
         fn from(source: ApiPagination) -> Self {
             Self {
                 page_number: source.page.unwrap_or(0) as usize,
-                page_size: source.size.unwrap_or(50) as usize 
+                page_size: source.size.unwrap_or(50) as usize,
             }
         }
     }
@@ -91,7 +94,10 @@ mod filters {
             .and_then(get_orgs_impl)
     }
 
-    async fn get_orgs_impl(pageination: ApiPagination, db: crate::Db) -> Result<impl Reply, Rejection> {
+    async fn get_orgs_impl(
+        pageination: ApiPagination,
+        db: crate::Db,
+    ) -> Result<impl Reply, Rejection> {
         let result = db.get_organizations(pageination.into()).await;
         let result: Result<Vec<GetOrganization>, BackendError> =
             result.map(|orgs_list| orgs_list.orgs.iter().map(GetOrganization::from).collect());
@@ -112,9 +118,7 @@ mod filters {
         repo: CreateRepository,
         db: crate::Db,
     ) -> Result<impl Reply, Rejection> {
-        let result = db
-            .create_repo(&org, &repo.repo, &repo.url)
-            .await;
+        let result = db.create_repo(&org, &repo.repo, &repo.url).await;
         let result = result.map(GetRepository::from);
         wrap_body(result.map_err(ApplicationError::from_context))
     }
