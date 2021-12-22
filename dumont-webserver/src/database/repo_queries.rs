@@ -11,9 +11,14 @@ pub trait RepoQueries {
     async fn create_repo<T>(&self, org: &DbOrganization, repo_name: T) -> DbResult<DbRepo> where T: ToString + Send;
     async fn update_repo_metadata(
         &self,
-        repo: DbRepo,
+        repo: &DbRepo,
         new_metadata: UpdateRepoMetadata,
-    ) -> DbResult<DbRepo>;
+    ) -> DbResult<RepoMetadata>;
+    async fn get_repo_metadata(
+        &self,
+        repo: &DbRepo
+    ) -> DbResult<RepoMetadata>;
+
     async fn find_repo<T>(&self, org: &DbOrganization, repo_name: T) -> DbResult<DbRepo> where T: ToString + Send;
     async fn get_repo_by_id(&self, org: &DbOrganization, repo_id: i32) -> DbResult<DbRepo>;
     async fn list_repo(
@@ -54,33 +59,48 @@ impl RepoQueries for PostresDatabase {
     }
 
     #[instrument(level = "debug", skip(self))]
+    async fn get_repo_metadata(&self, db_repo: &DbRepo) -> DbResult<RepoMetadata> {
+        use entity::repository_metadata::{Column};
+
+        let condition = Condition::all().add(Column::RepoId.eq(db_repo.repo_id));
+        let metadata_resp = RepositoryMetadata::find().filter(condition).one(&self.db).await?;
+
+        match metadata_resp {
+            Some(metadata) => Ok(RepoMetadata { repo_url: metadata.repo_url }),
+            None => {
+                Ok(RepoMetadata { repo_url: None })
+            }
+        }
+    }
+
+    #[instrument(level = "debug", skip(self))]
     async fn update_repo_metadata(
         &self,
-        db_repo: DbRepo,
+        db_repo: &DbRepo,
         new_metadata: UpdateRepoMetadata,
-    ) -> DbResult<DbRepo> {
-        use entity::repository::ActiveModel;
+    ) -> DbResult<RepoMetadata> {
+        use entity::repository_metadata::{Column, ActiveModel};
+        let condition = Condition::all().add(Column::RepoId.eq(db_repo.repo_id));
+        let metadata = RepositoryMetadata::find().filter(condition).one(&self.db).await?;
 
-        let resp = Repository::find_by_id(db_repo.repo_id)
-            .one(&self.db)
-            .await?;
-        let mut repo: ActiveModel = match resp {
-            Some(repo) => repo.into(),
+        let mut metadata: ActiveModel = match metadata {
+            Some(metadata) => metadata.into(),
             None => {
-                return Err(DatabaseError::NotFound { error: NotFoundError::Repo {
-                    org: db_repo.org.org_name.clone(),
-                    repo: db_repo.repo_name
-                }});
+                ActiveModel {
+                    repository_metadata_id: Unset(None),
+                    repo_id: Set(db_repo.repo_id),
+                    repo_url: Unset(None),
+                }
             }
         };
+    
 
         if let Some(repo_url) = new_metadata.repo_url {
-            repo.repo_url = Set(repo_url);
+            metadata.repo_url = Set(Some(repo_url));
         }
 
-        repo.update(&self.db).await?;
-
-        self.get_repo_by_id(&db_repo.org, db_repo.repo_id).await
+        metadata.save(&self.db).await?;
+        self.get_repo_metadata(db_repo).await
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -185,30 +205,28 @@ mod integ_test {
 
         assert_eq!(repo.repo_name, "bar");
         assert_eq!(repo.org, new_org);
-        assert_eq!(repo.version_schema, VersionScheme::Semver);
+        
+        let metadata = db.get_repo_metadata(&repo).await.unwrap();
+        assert_eq!(metadata.repo_url, None);
 
-        let repo = db
-            .update_repo_settings(
-                repo,
-                UpdateRepoSetting {
-                    version_scheme: Some(VersionScheme::Serial),
+        let metadata = db
+            .update_repo_metadata(
+                &repo,
+                UpdateRepoMetadata {
+                    repo_url: Some("https://google.com".to_owned()),
                 },
             )
             .await
             .unwrap();
-        assert_eq!(repo.repo_name, "bar");
-        assert_eq!(repo.org, new_org);
-        assert_eq!(repo.version_schema, VersionScheme::Serial);
+        assert_eq!(metadata.repo_url, Some("https://google.com".to_owned()));
 
         let repo = db.get_repo_by_id(&new_org, repo.repo_id).await.unwrap();
         assert_eq!(repo.repo_name, "bar");
         assert_eq!(repo.org, new_org);
-        assert_eq!(repo.version_schema, VersionScheme::Serial);
 
         let repo = db.find_repo(&new_org, "bar".to_owned()).await.unwrap();
         assert_eq!(repo.repo_name, "bar");
         assert_eq!(repo.org, new_org);
-        assert_eq!(repo.version_schema, VersionScheme::Serial);
 
         match db.find_repo(&new_org, "flig".to_owned()).await {
             Err(DatabaseError::NotFound { error: NotFoundError::Repo { org, repo } }) => {

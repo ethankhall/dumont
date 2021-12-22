@@ -39,7 +39,6 @@ pub struct CreateRepository {
 pub struct GetRepository {
     pub org: String,
     pub repo: String,
-    pub url: Option<String>,
 }
 
 impl From<&crate::backend::models::DataStoreRepository> for GetRepository {
@@ -47,7 +46,6 @@ impl From<&crate::backend::models::DataStoreRepository> for GetRepository {
         Self {
             org: model.organization.name.clone(),
             repo: model.name.clone(),
-            url: model.url.clone(),
         }
     }
 }
@@ -57,7 +55,6 @@ impl From<crate::backend::models::DataStoreRepository> for GetRepository {
         Self {
             org: model.organization.name.clone(),
             repo: model.name.clone(),
-            url: model.url.clone(),
         }
     }
 }

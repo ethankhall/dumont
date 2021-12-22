@@ -22,5 +22,11 @@ pub async fn setup_schema() -> DbResult<DatabaseConnection> {
     )
     .await?;
 
+    db.execute(
+        db.get_database_backend()
+            .build(&Schema::create_table_from_entity(RepositoryMetadata)),
+    )
+    .await?;
+
     Ok(db)
 }

@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DbOrganization {
     pub org_id: i32,
@@ -30,6 +28,11 @@ impl DbRepo {
             repo_name: repo.repo_name.clone(),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct RepoMetadata {
+    pub repo_url: Option<String>
 }
 
 #[derive(Debug, PartialEq, Eq)]

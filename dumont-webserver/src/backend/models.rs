@@ -1,13 +1,5 @@
 use strum_macros::{Display, EnumString};
 
-#[derive(Debug, Clone, EnumString, Display, Eq, PartialEq)]
-pub enum VersionScheme {
-    #[strum(serialize = "serial")]
-    Serial,
-    #[strum(serialize = "semver")]
-    Semver,
-}
-
 #[derive(Debug, Clone)]
 pub struct PaginationOptions {
     pub page_number: usize,
@@ -59,10 +51,19 @@ impl From<Vec<crate::database::prelude::DbOrganization>> for DataStoreOrganizati
 
 #[derive(Debug, Clone)]
 pub struct DataStoreRepository {
-    pub id: i64,
+    pub id: i32,
     pub organization: DataStoreOrganization,
     pub name: String,
-    pub url: Option<String>,
+}
+
+impl From<crate::database::prelude::DbRepo> for DataStoreRepository {
+    fn from(source: crate::database::prelude::DbRepo) -> Self {
+        Self {
+            id: source.repo_id,
+            organization: source.org.into(),
+            name: source.repo_name
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

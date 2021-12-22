@@ -62,8 +62,13 @@ impl DefaultBackend {
         repo_url: &Option<String>,
     ) -> Result<DataStoreRepository, BackendError> {
         let org = self.database.find_org(org_name).await?;
-        let repo = self.database.create_repo(org, repo_name).await?;
-        self.database.update_repo()
+        let repo = self.database.create_repo(&org, repo_name).await?;
+        
+        if let Some(repo_url) = repo_url {
+            self.database.update_repo_metadata(&repo, UpdateRepoMetadata {repo_url: Some(repo_url.to_string())}).await?;
+        }
+
+        Ok(repo.into())
     }
 
     pub async fn get_repos(&self, org_name: &str) -> Result<DataStoreRepositoryList, BackendError> {

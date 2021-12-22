@@ -112,12 +112,8 @@ mod filters {
         repo: CreateRepository,
         db: crate::Db,
     ) -> Result<impl Reply, Rejection> {
-        let backend_scheme = match repo.version_scheme {
-            VersionScheme::Serial => crate::backend::models::VersionScheme::Serial,
-            VersionScheme::Semver => crate::backend::models::VersionScheme::Semver,
-        };
         let result = db
-            .create_repo(&org, &repo.repo, &repo.url, backend_scheme)
+            .create_repo(&org, &repo.repo, &repo.url)
             .await;
         let result = result.map(GetRepository::from);
         wrap_body(result.map_err(ApplicationError::from_context))
