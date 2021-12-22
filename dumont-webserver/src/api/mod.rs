@@ -16,10 +16,31 @@ mod filters {
     use super::operations::{
         CreateOrganization, CreateRepository, GetOrganization, GetRepository, VersionScheme,
     };
-    use crate::backend::BackendError;
-    use serde::{de::DeserializeOwned, Serialize};
+    use crate::backend::{models::PaginationOptions, BackendError};
+    use serde::{de::DeserializeOwned, Deserialize, Serialize};
     use tracing::info;
     use warp::{reject::Reject, Filter, Rejection, Reply};
+
+    #[derive(Deserialize, Serialize)]
+    struct ApiPagination {
+        page: Option<u32>,
+        size: Option<u32>,
+    }
+
+    impl Default for ApiPagination {
+        fn default() -> Self {
+            Self { page: Some(0), size: Some(50) }
+        }
+    }
+
+    impl From<ApiPagination> for PaginationOptions {
+        fn from(source: ApiPagination) -> Self {
+            Self {
+                page_number: source.page.unwrap_or(0) as usize,
+                page_size: source.size.unwrap_or(50) as usize 
+            }
+        }
+    }
 
     fn wrap_body<T>(body: Result<T, impl Reject>) -> Result<impl Reply, Rejection>
     where
@@ -65,12 +86,13 @@ mod filters {
         info!("GET /api/orgs");
         warp::path!("api" / "orgs")
             .and(warp::get())
+            .and(warp::query::<ApiPagination>())
             .and(with_db(db))
             .and_then(get_orgs_impl)
     }
 
-    async fn get_orgs_impl(db: crate::Db) -> Result<impl Reply, Rejection> {
-        let result = db.get_organizations().await;
+    async fn get_orgs_impl(pageination: ApiPagination, db: crate::Db) -> Result<impl Reply, Rejection> {
+        let result = db.get_organizations(pageination.into()).await;
         let result: Result<Vec<GetOrganization>, BackendError> =
             result.map(|orgs_list| orgs_list.orgs.iter().map(GetOrganization::from).collect());
         wrap_body(result.map_err(ApplicationError::from_context))

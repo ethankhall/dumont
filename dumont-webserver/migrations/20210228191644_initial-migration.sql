@@ -3,14 +3,19 @@ CREATE TABLE organization (
     org_name TEXT UNIQUE NOT NULL
 );
 
-
 CREATE TABLE repository(
     repo_id INTEGER PRIMARY KEY NOT NULL,
     org_id INTEGER NOT NULL REFERENCES organization(org_id),
-    version_strategy TEXT NOT NULL,
     repo_name TEXT NOT NULL,
     url TEXT,
     UNIQUE(org_id, repo_name)
+);
+
+CREATE TABLE repository_metadata(
+    repository_metadata_id INTEGER PRIMARY KEY NOT NULL,
+    repo_id INTEGER NOT NULL REFERENCES repository(repo_id),
+    repo_url TEXT,
+    UNIQUE(repo_id)
 );
 
 CREATE TABLE repository_label(

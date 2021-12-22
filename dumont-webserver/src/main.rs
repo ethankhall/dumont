@@ -1,5 +1,5 @@
 use crate::backend::DefaultBackend;
-use clap::{AppSettings, ArgGroup, Clap};
+use clap::{ArgGroup, Subcommand, Args, Parser};
 use std::sync::Arc;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
@@ -26,7 +26,7 @@ mod database;
 
 pub type Db = Arc<DefaultBackend>;
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 #[clap(author, about, version)]
 pub struct Opts {
     #[clap(subcommand)]
@@ -39,21 +39,21 @@ pub struct Opts {
     pub runtime_args: RuntimeArgs,
 }
 
-#[derive(Clap, Debug)]
+#[derive(Subcommand, Debug)]
 pub enum MainOperation {
     /// Run the web server
     #[clap(name = "serve")]
     RunWebServer(RunWebServerArgs),
 }
 
-#[derive(Clap, Debug)]
+#[derive(Args, Debug)]
 pub struct RunWebServerArgs {
     /// Database Connection String
     #[clap(long = "database-url", env = "DB_CONNECTION")]
     db_connection_string: String,
 }
 
-#[derive(Clap, Debug)]
+#[derive(Args, Debug)]
 pub struct RuntimeArgs {
     /// The URL to publish metrics to.
     #[clap(
@@ -64,7 +64,7 @@ pub struct RuntimeArgs {
     otel_collector: String,
 }
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 #[clap(group = ArgGroup::new("logging"))]
 pub struct LoggingOpts {
     /// A level of verbosity, and can be used multiple times

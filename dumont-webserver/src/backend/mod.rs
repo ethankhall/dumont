@@ -1,11 +1,10 @@
 pub mod models;
 
-use async_trait::async_trait;
 use models::*;
 use thiserror::Error;
 use tracing::error;
 
-use crate::database::{DatabaseError, PostresDatabase};
+use crate::database::prelude::*;
 
 #[derive(Error, Debug)]
 pub enum BackendError {
@@ -39,18 +38,21 @@ impl DefaultBackend {
         &self,
         org_name: &str,
     ) -> Result<DataStoreOrganization, BackendError> {
-        unimplemented!();
+        let new_org = self.database.create_org(org_name).await?;
+        Ok(new_org.into())
     }
 
-    pub async fn get_organizations(&self) -> Result<DataStoreOrganizationList, BackendError> {
-        unimplemented!();
+    pub async fn get_organizations(&self, pagination: PaginationOptions) -> Result<DataStoreOrganizationList, BackendError> {
+        let found_orgs = self.database.list_orgs(pagination).await?;
+        Ok(found_orgs.into())
     }
 
     pub async fn get_organization(
         &self,
         org_name: &str,
     ) -> Result<DataStoreOrganization, BackendError> {
-        unimplemented!();
+        let new_org = self.database.find_org(org_name).await?;
+        Ok(new_org.into())
     }
 
     pub async fn create_repo(
@@ -58,9 +60,10 @@ impl DefaultBackend {
         org_name: &str,
         repo_name: &str,
         repo_url: &Option<String>,
-        version: VersionScheme,
     ) -> Result<DataStoreRepository, BackendError> {
-        unimplemented!();
+        let org = self.database.find_org(org_name).await?;
+        let repo = self.database.create_repo(org, repo_name).await?;
+        self.database.update_repo()
     }
 
     pub async fn get_repos(&self, org_name: &str) -> Result<DataStoreRepositoryList, BackendError> {

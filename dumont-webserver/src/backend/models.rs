@@ -9,14 +9,52 @@ pub enum VersionScheme {
 }
 
 #[derive(Debug, Clone)]
+pub struct PaginationOptions {
+    pub page_number: usize,
+    pub page_size: usize,
+}
+
+impl PaginationOptions {
+    pub fn new(page_number: usize, page_size: usize) -> Self {
+        Self { page_number, page_size }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct DataStoreOrganization {
-    pub id: i64,
+    pub id: i32,
     pub name: String,
+}
+
+impl From<crate::database::prelude::DbOrganization> for DataStoreOrganization {
+    fn from(source: crate::database::prelude::DbOrganization) -> Self {
+        Self {
+            id: source.org_id,
+            name: source.org_name
+        }
+    }
+}
+
+impl From<&crate::database::prelude::DbOrganization> for DataStoreOrganization {
+    fn from(source: &crate::database::prelude::DbOrganization) -> Self {
+        Self {
+            id: source.org_id.clone(),
+            name: source.org_name.clone()
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct DataStoreOrganizationList {
     pub orgs: Vec<DataStoreOrganization>,
+}
+
+impl From<Vec<crate::database::prelude::DbOrganization>> for DataStoreOrganizationList {
+    fn from(source: Vec<crate::database::prelude::DbOrganization>) -> Self {
+        let orgs: Vec<DataStoreOrganization> = source.iter().map(|it| it.into()).collect();
+
+        Self { orgs }
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -12,7 +12,7 @@ warp = "0.3.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 async-trait = "0.1.42"
-clap = { version = "3.0.0-beta.4" }
+clap = { version = "3.0.0-rc.7", features = ["derive", "env"] }
 dotenv = "0.15.0"
 thiserror = "1.0"
 anyhow = "1.0"
@@ -25,10 +25,12 @@ tracing-timing = "0.5"
 tracing-core = "*"
 tracing-log = "0.1"
 tracing = "0.1"
+tracing-attributes = "0.1"
 opentelemetry = { version = "0.16", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.9" }
 strum_macros = "0.21"
 strum = "0.21"
+refinery = { version = "0.7", features = ["postgres"]}
 
 [dev-dependencies]
 sea-orm = { version = "0.2", features = [ "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls", "macros" ] }
