@@ -21,10 +21,7 @@ pub struct DataStoreOrganization {
 
 impl From<crate::database::prelude::DbOrganization> for DataStoreOrganization {
     fn from(source: crate::database::prelude::DbOrganization) -> Self {
-        Self {
-            id: source.org_id,
-            name: source.org_name,
-        }
+        (&source).into()
     }
 }
 
@@ -59,10 +56,16 @@ pub struct DataStoreRepository {
 
 impl From<crate::database::prelude::DbRepo> for DataStoreRepository {
     fn from(source: crate::database::prelude::DbRepo) -> Self {
+        (&source).into()
+    }
+}
+
+impl From<&crate::database::prelude::DbRepo> for DataStoreRepository {
+    fn from(source: &crate::database::prelude::DbRepo) -> Self {
         Self {
             id: source.repo_id,
             organization: source.org.into(),
-            name: source.repo_name,
+            name: source.repo_name.clone(),
         }
     }
 }
@@ -70,6 +73,14 @@ impl From<crate::database::prelude::DbRepo> for DataStoreRepository {
 #[derive(Debug, Clone)]
 pub struct DataStoreRepositoryList {
     pub repos: Vec<DataStoreRepository>,
+}
+
+impl From<Vec<crate::database::prelude::DbRepo>> for DataStoreRepositoryList {
+    fn from(source: Vec<crate::database::prelude::DbRepo>) -> Self {
+        let repos: Vec<DataStoreRepository> = source.iter().map(|it| it.into()).collect();
+
+        Self { repos }
+    }
 }
 
 #[derive(Debug, Clone)]

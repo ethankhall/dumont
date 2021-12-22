@@ -81,8 +81,11 @@ impl DefaultBackend {
         Ok(repo.into())
     }
 
-    pub async fn get_repos(&self, org_name: &str) -> Result<DataStoreRepositoryList, BackendError> {
-        unimplemented!();
+    pub async fn get_repos(&self, org_name: &str, pagination: PaginationOptions) -> Result<DataStoreRepositoryList, BackendError> {
+        let org = self.database.find_org(org_name).await?;
+        let repos = self.database.list_repo(&org, pagination).await?;
+
+        
     }
 
     pub async fn get_repo(
