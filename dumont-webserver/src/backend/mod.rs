@@ -17,13 +17,6 @@ pub enum BackendError {
     },
 }
 
-// impl From<sqlx::Error> for BackendError {
-//     fn from(e: sqlx::Error) -> Self {
-//         error!("Unable to exec SQL: {:?}", e);
-//         BackendError::BackendError { source: e.into() }
-//     }
-// }
-
 pub struct DefaultBackend {
     database: PostresDatabase,
 }
@@ -34,12 +27,22 @@ impl DefaultBackend {
             database: PostresDatabase::new(db_connection_string).await?,
         })
     }
+
     pub async fn create_organization(
         &self,
         org_name: &str,
     ) -> Result<DataStoreOrganization, BackendError> {
         let new_org = self.database.create_org(org_name).await?;
         Ok(new_org.into())
+    }
+
+    pub async fn delete_organization(
+        &self,
+        org_name: &str,
+    ) -> Result<(), BackendError> {
+        self.database.delete_org(org_name).await?;
+
+        Ok(())
     }
 
     pub async fn get_organizations(
@@ -84,8 +87,7 @@ impl DefaultBackend {
     pub async fn get_repos(&self, org_name: &str, pagination: PaginationOptions) -> Result<DataStoreRepositoryList, BackendError> {
         let org = self.database.find_org(org_name).await?;
         let repos = self.database.list_repo(&org, pagination).await?;
-
-        
+        Ok(repos.into())
     }
 
     pub async fn get_repo(
@@ -93,6 +95,8 @@ impl DefaultBackend {
         org_name: &str,
         repo_name: &str,
     ) -> Result<DataStoreRepository, BackendError> {
-        unimplemented!();
+        let org = self.database.find_org(org_name).await?;
+        let repo = self.database.find_repo(&org, repo_name).await?;
+        Ok(repo.into())
     }
 }

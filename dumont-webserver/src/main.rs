@@ -3,7 +3,7 @@ use clap::{ArgGroup, Args, Parser, Subcommand};
 use std::sync::Arc;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
-    fmt::format::{Format, JsonFields},
+    fmt::format::{Format, JsonFields, PrettyFields},
     layer::SubscriberExt,
     Registry,
 };
@@ -49,7 +49,7 @@ pub enum MainOperation {
 #[derive(Args, Debug)]
 pub struct RunWebServerArgs {
     /// Database Connection String
-    #[clap(long = "database-url", env = "DB_CONNECTION")]
+    #[clap(long = "database-url", env = "DATABASE_URL")]
     db_connection_string: String,
 }
 
@@ -123,15 +123,29 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
 
-    let console_output = tracing_subscriber::fmt::layer()
+    let is_terminal = atty::is(atty::Stream::Stdout) && cfg!(debug_assertions);
+    let pretty_logger = if is_terminal {
+        Some(tracing_subscriber::fmt::layer()
+        .event_format(Format::default().pretty())
+        .fmt_fields(PrettyFields::new()))
+    } else {
+        None
+    };
+
+    let json_logger = if !is_terminal {
+        Some(tracing_subscriber::fmt::layer()
         .event_format(Format::default().json().flatten_event(true))
-        .fmt_fields(JsonFields::new());
+        .fmt_fields(JsonFields::new()))
+    } else {
+        None
+    };
 
     let subscriber = Registry::default()
         .with(LevelFilter::from(opt.logging_opts))
         .with(otel_layer)
         .with(timing)
-        .with(console_output);
+        .with(json_logger)
+        .with(pretty_logger);
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 

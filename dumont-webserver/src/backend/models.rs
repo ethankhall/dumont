@@ -64,7 +64,7 @@ impl From<&crate::database::prelude::DbRepo> for DataStoreRepository {
     fn from(source: &crate::database::prelude::DbRepo) -> Self {
         Self {
             id: source.repo_id,
-            organization: source.org.into(),
+            organization: source.org.clone().into(),
             name: source.repo_name.clone(),
         }
     }

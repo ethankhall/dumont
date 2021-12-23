@@ -7,6 +7,12 @@ pub struct CreateOrganization {
     pub org: String,
 }
 
+impl From<crate::backend::models::DataStoreOrganization> for GetOrganization {
+    fn from(model: crate::backend::models::DataStoreOrganization) -> Self {
+        (&model).into()
+    }
+}
+
 impl From<&crate::backend::models::DataStoreOrganization> for GetOrganization {
     fn from(model: &crate::backend::models::DataStoreOrganization) -> Self {
         Self {

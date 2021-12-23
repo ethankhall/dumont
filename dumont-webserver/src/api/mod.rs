@@ -14,12 +14,23 @@ pub async fn create_filters(
 mod filters {
     use super::canned_response::ApplicationError;
     use super::operations::{
-        CreateOrganization, CreateRepository, GetOrganization, GetRepository, VersionScheme,
+        CreateOrganization, CreateRepository, GetOrganization, GetRepository,
     };
     use crate::backend::{models::PaginationOptions, BackendError};
     use serde::{de::DeserializeOwned, Deserialize, Serialize};
     use tracing::info;
     use warp::{reject::Reject, Filter, Rejection, Reply};
+
+    #[derive(Deserialize, Serialize)]
+    struct DataWrapper<T: Serialize> {
+        pub data: T
+    }
+
+    impl <T: Serialize> DataWrapper<T> {
+        fn new(data: T) -> Self {
+            Self { data }
+        }
+    }
 
     #[derive(Deserialize, Serialize)]
     struct ApiPagination {
@@ -60,20 +71,25 @@ mod filters {
     }
 
     pub fn api(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+        // org apis
         create_org(db.clone())
+            .or(delete_org(db.clone()))
             .or(get_orgs(db.clone()))
+            .or(get_an_org(db.clone()))
+            // repo apis
             .or(create_repo(db.clone()))
             .or(get_repos(db.clone()))
             .or(get_repo(db.clone()))
     }
 
     fn create_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        info!("POST /api/orgs");
-        warp::path!("api" / "orgs")
+        info!("POST /api/org");
+        warp::path!("api" / "org")
             .and(warp::post())
             .and(json_body::<CreateOrganization>())
             .and(with_db(db))
             .and_then(create_org_impl)
+            .with(warp::trace::named("create_org"))
     }
 
     async fn create_org_impl(
@@ -85,13 +101,31 @@ mod filters {
         wrap_body(result.map_err(ApplicationError::from_context))
     }
 
+    fn delete_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+        info!("DELETE /api/org/{{org}}");
+        warp::path!("api" / "org" / String)
+            .and(warp::delete())
+            .and(with_db(db))
+            .and_then(delete_org_impl)
+            .with(warp::trace::named("delete_org"))
+    }
+
+    async fn delete_org_impl(
+        org_name: String,
+        db: crate::Db,
+    ) -> Result<impl Reply, Rejection> {
+        let result = db.delete_organization(&org_name).await;
+        wrap_body(result.map_err(ApplicationError::from_context))
+    }
+
     fn get_orgs(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        info!("GET /api/orgs");
-        warp::path!("api" / "orgs")
+        info!("GET /api/org");
+        warp::path!("api" / "org")
             .and(warp::get())
             .and(warp::query::<ApiPagination>())
             .and(with_db(db))
             .and_then(get_orgs_impl)
+            .with(warp::trace::named("get_orgs"))
     }
 
     async fn get_orgs_impl(
@@ -99,18 +133,37 @@ mod filters {
         db: crate::Db,
     ) -> Result<impl Reply, Rejection> {
         let result = db.get_organizations(pageination.into()).await;
-        let result: Result<Vec<GetOrganization>, BackendError> =
-            result.map(|orgs_list| orgs_list.orgs.iter().map(GetOrganization::from).collect());
+        let result: Result<DataWrapper<Vec<GetOrganization>>, BackendError> =
+            result.map(|orgs_list| DataWrapper::new(orgs_list.orgs.iter().map(GetOrganization::from).collect()));
+        wrap_body(result.map_err(ApplicationError::from_context))
+    }
+
+    fn get_an_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+        info!("GET /api/org/{{org}}");
+        warp::path!("api" / "org" / String)
+            .and(warp::get())
+            .and(with_db(db))
+            .and_then(get_an_org_impl)
+            .with(warp::trace::named("get_org"))
+    }
+
+    async fn get_an_org_impl(
+        org_name: String,
+        db: crate::Db,
+    ) -> Result<impl Reply, Rejection> {
+        let result = db.get_organization(&org_name).await;
+        let result: Result<GetOrganization, BackendError> = result.map(|org| GetOrganization::from(org));
         wrap_body(result.map_err(ApplicationError::from_context))
     }
 
     fn create_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        info!("POST /api/orgs/{{org}}/repos");
-        warp::path!("api" / "orgs" / String / "repos")
+        info!("POST /api/org/{{org}}/repo");
+        warp::path!("api" / "org" / String / "repo")
             .and(warp::post())
             .and(json_body::<CreateRepository>())
             .and(with_db(db))
             .and_then(create_repo_impl)
+            .with(warp::trace::named("create_repo"))
     }
 
     async fn create_repo_impl(
@@ -124,26 +177,29 @@ mod filters {
     }
 
     fn get_repos(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        info!("GET /api/orgs/{{org}}/repos");
-        warp::path!("api" / "orgs" / String / "repos")
+        info!("GET /api/org/{{org}}/repo");
+        warp::path!("api" / "org" / String / "repo")
             .and(warp::get())
+            .and(warp::query::<ApiPagination>())
             .and(with_db(db))
             .and_then(get_repos_impl)
+            .with(warp::trace::named("get_repos_for_org"))
     }
 
-    async fn get_repos_impl(org: String, db: crate::Db) -> Result<impl Reply, Rejection> {
-        let result = db.get_repos(&org).await;
-        let result: Result<Vec<GetRepository>, BackendError> =
-            result.map(|repo_list| repo_list.repos.iter().map(GetRepository::from).collect());
+    async fn get_repos_impl(org: String, pageination: ApiPagination, db: crate::Db) -> Result<impl Reply, Rejection> {
+        let result = db.get_repos(&org, pageination.into()).await;
+        let result: Result<DataWrapper<Vec<GetRepository>>, BackendError> =
+            result.map(|repo_list| DataWrapper::new(repo_list.repos.iter().map(GetRepository::from).collect()));
         wrap_body(result.map_err(ApplicationError::from_context))
     }
 
     fn get_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        info!("GET /api/repos/{{org}}/{{repo}}");
-        warp::path!("api" / "repos" / String / String)
+        info!("GET /api/org/{{org}}/repo/{{repo}}");
+        warp::path!("api" / "org" / String / "repo" / String)
             .and(warp::get())
             .and(with_db(db))
             .and_then(get_repo_impl)
+            .with(warp::trace::named("get_repo_for_org"))
     }
 
     async fn get_repo_impl(
@@ -172,6 +228,7 @@ mod filters {
 
 mod canned_response {
     use crate::backend::BackendError;
+    use crate::database::DatabaseError;
     use serde::Serialize;
     use serde_json::Value as JsonValue;
     use std::convert::Infallible;
@@ -194,11 +251,19 @@ mod canned_response {
                     message,
                 },
                 BackendError::DatabaseError { source } => {
-                    error!("Internal Error: {}", source);
-                    Self {
-                        code: StatusCode::INTERNAL_SERVER_ERROR,
-                        message,
-                    }
+                    match source {
+                        DatabaseError::NotFound { error } => Self {
+                            code: StatusCode::NOT_FOUND,
+                            message: error.to_string(),
+                        },
+                        _ => {
+                            error!("Internal Error: {}", source);
+                            Self {
+                                code: StatusCode::INTERNAL_SERVER_ERROR,
+                                message,
+                            }
+                        }
+                    }  
                 }
             }
         }
