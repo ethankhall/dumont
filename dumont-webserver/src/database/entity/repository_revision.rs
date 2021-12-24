@@ -24,7 +24,7 @@ pub enum Relation {
         from = "Column::RepoId",
         to = "super::repository::Column::RepoId",
         on_update = "NoAction",
-        on_delete = "NoAction"
+        on_delete = "Cascade"
     )]
     Repository,
     #[sea_orm(has_many = "super::repository_revision_label::Entity")]

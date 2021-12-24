@@ -22,7 +22,7 @@ pub enum Relation {
         from = "Column::RevisionId",
         to = "super::repository_revision::Column::RevisionId",
         on_update = "NoAction",
-        on_delete = "NoAction"
+        on_delete = "Cascade"
     )]
     RepositoryRevision,
 }
