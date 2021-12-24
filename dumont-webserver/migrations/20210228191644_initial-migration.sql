@@ -13,14 +13,14 @@ CREATE TABLE repository(
 
 CREATE TABLE repository_metadata(
     repository_metadata_id SERIAL PRIMARY KEY NOT NULL,
-    repo_id INTEGER NOT NULL REFERENCES repository(repo_id),
+    repo_id INTEGER NOT NULL REFERENCES repository(repo_id) ON DELETE CASCADE,
     repo_url TEXT,
     UNIQUE(repo_id)
 );
 
 CREATE TABLE repository_label(
     repository_label_id SERIAL PRIMARY KEY NOT NULL,
-    repo_id INTEGER NOT NULL REFERENCES repository(repo_id),
+    repo_id INTEGER NOT NULL REFERENCES repository(repo_id) ON DELETE CASCADE,
     label_name TEXT NOT NULL,
     label_value TEXT NOT NULL,
     created_at timestamp NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE repository_label(
 
 CREATE TABLE repository_revision(
     revision_id SERIAL PRIMARY KEY NOT NULL,
-    repo_id INTEGER NOT NULL REFERENCES repository(repo_id),
+    repo_id INTEGER NOT NULL REFERENCES repository(repo_id) ON DELETE CASCADE,
     revision_name TEXT NOT NULL,
     scm_id TEXT NOT NULL,
     created_at timestamp NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE repository_revision(
 
 CREATE TABLE repository_revision_label(
     revision_label_id SERIAL PRIMARY KEY NOT NULL,
-    revision_id INTEGER NOT NULL REFERENCES repository_revision(revision_id),
+    revision_id INTEGER NOT NULL REFERENCES repository_revision(revision_id) ON DELETE CASCADE,
     label_name TEXT NOT NULL,
     label_value TEXT NOT NULL,
     created_at timestamp NOT NULL,

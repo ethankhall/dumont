@@ -62,7 +62,7 @@ impl DefaultBackend {
         repo_name: &str,
         repo_url: &Option<String>,
     ) -> Result<DataStoreRepository, BackendError> {
-        let repo = self.database.create_repo(org_name, repo_name).await?;
+        self.database.create_repo(org_name, repo_name).await?;
 
         if let Some(repo_url) = repo_url {
             self.database
@@ -75,6 +75,8 @@ impl DefaultBackend {
                 )
                 .await?;
         }
+
+        let repo = self.database.get_repo(&org_name, repo_name).await?;
 
         Ok(repo.into())
     }
@@ -106,6 +108,19 @@ impl DefaultBackend {
         org_name: &str,
         repo_name: &str,
     ) -> Result<DataStoreRepositoryMetadata, BackendError> {
+        let metadata = self.database.get_repo_metadata(org_name, repo_name).await?;
+        Ok(metadata.into())
+    }
+
+    pub async fn update_repo_metadata(
+        &self,
+        org_name: &str,
+        repo_name: &str,
+        repo_url: Option<String>,
+    ) -> Result<DataStoreRepositoryMetadata, BackendError> {
+        self.database
+            .update_repo_metadata(org_name, repo_name, UpdateRepoMetadata { repo_url })
+            .await?;
         let metadata = self.database.get_repo_metadata(org_name, repo_name).await?;
         Ok(metadata.into())
     }
