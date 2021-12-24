@@ -1,6 +1,7 @@
 use super::canned_response::ApplicationError;
 use super::prelude::*;
 use crate::backend::BackendError;
+use std::collections::BTreeMap;
 use tracing::info;
 use warp::{Filter, Rejection, Reply};
 
@@ -9,14 +10,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateRepository {
     pub repo: String,
-    pub scm_url: Option<String>,
+    #[serde(default)]
+    pub labels: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetRepository {
     pub org: String,
     pub repo: String,
-    pub metadata: GetRepositoryMetadata,
+    pub labels: BTreeMap<String, String>,
 }
 
 impl From<&crate::backend::models::DataStoreRepository> for GetRepository {
@@ -24,9 +26,7 @@ impl From<&crate::backend::models::DataStoreRepository> for GetRepository {
         Self {
             org: model.org_name.clone(),
             repo: model.repo_name.clone(),
-            metadata: GetRepositoryMetadata {
-                scm_url: model.repo_url.clone(),
-            },
+            labels: model.labels.clone(),
         }
     }
 }
@@ -36,24 +36,14 @@ impl From<crate::backend::models::DataStoreRepository> for GetRepository {
         Self {
             org: model.org_name.clone(),
             repo: model.repo_name.clone(),
-            metadata: GetRepositoryMetadata {
-                scm_url: model.repo_url.clone(),
-            },
+            labels: model.labels.clone(),
         }
     }
 }
 
-type UpdateRepositoryMetadata = GetRepositoryMetadata;
-
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GetRepositoryMetadata {
-    pub scm_url: Option<String>,
-}
-
-impl From<crate::backend::models::DataStoreRepositoryMetadata> for GetRepositoryMetadata {
-    fn from(model: crate::backend::models::DataStoreRepositoryMetadata) -> Self {
-        Self { scm_url: model.url }
-    }
+pub struct UpdateRepository {
+    pub labels: BTreeMap<String, String>,
 }
 
 pub fn create_repo_api(
@@ -63,8 +53,7 @@ pub fn create_repo_api(
         .or(get_repos(db.clone()))
         .or(get_repo(db.clone()))
         .or(delete_repo(db.clone()))
-        .or(get_metadata_repo(db.clone()))
-        .or(update_repo_metadata(db.clone()))
+        .or(update_repo(db.clone()))
 }
 
 fn create_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -81,7 +70,7 @@ async fn create_repo_impl(
     repo: CreateRepository,
     db: crate::Db,
 ) -> Result<impl Reply, Rejection> {
-    let result = db.create_repo(&org, &repo.repo, &repo.scm_url).await;
+    let result = db.create_repo(&org, &repo.repo, repo.labels).await;
     let result = result.map(GetRepository::from);
     wrap_body(result.map_err(ApplicationError::from_context))
 }
@@ -139,46 +128,26 @@ async fn delete_repo_impl(
     wrap_body(result.map_err(ApplicationError::from_context))
 }
 
-fn get_metadata_repo(
-    db: crate::Db,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    info!("GET /api/org/{{org}}/repo/{{repo}}/metadata");
-    warp::path!("api" / "org" / String / "repo" / String / "metadata")
-        .and(warp::get())
-        .and(with_db(db))
-        .and_then(get_metadata_repo_impl)
-}
-
-async fn get_metadata_repo_impl(
-    org: String,
-    repo: String,
-    db: crate::Db,
-) -> Result<impl Reply, Rejection> {
-    let result = db.get_repo_metadata(&org, &repo).await;
-    let result: Result<GetRepositoryMetadata, BackendError> =
-        result.map(GetRepositoryMetadata::from);
-    wrap_body(result.map_err(ApplicationError::from_context))
-}
-
-fn update_repo_metadata(
-    db: crate::Db,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    info!("PUT /api/org/{{org}}/repo/{{repo}}/metadata");
-    warp::path!("api" / "org" / String / "repo" / String / "metadata")
+fn update_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    info!("PUT /api/org/{{org}}/repo/{{repo}}");
+    warp::path!("api" / "org" / String / "repo" / String)
         .and(warp::put())
-        .and(json_body::<UpdateRepositoryMetadata>())
+        .and(json_body::<UpdateRepository>())
         .and(with_db(db))
-        .and_then(update_repo_metadata_impl)
+        .and_then(update_repo_impl)
 }
 
-async fn update_repo_metadata_impl(
+async fn update_repo_impl(
     org: String,
     repo: String,
-    metadata: UpdateRepositoryMetadata,
+    update: UpdateRepository,
     db: crate::Db,
 ) -> Result<impl Reply, Rejection> {
-    let result = db.update_repo_metadata(&org, &repo, metadata.scm_url).await;
-    let result: Result<GetRepositoryMetadata, BackendError> =
-        result.map(GetRepositoryMetadata::from);
+    if let Err(err) = db.update_repo(&org, &repo, update.labels).await {
+        return wrap_body(Err(ApplicationError::from_context(err)));
+    }
+
+    let result = db.get_repo(&org, &repo).await;
+    let result: Result<GetRepository, BackendError> = result.map(GetRepository::from);
     wrap_body(result.map_err(ApplicationError::from_context))
 }

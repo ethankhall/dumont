@@ -1,4 +1,5 @@
 pub mod models;
+use std::collections::BTreeMap;
 
 use models::*;
 use thiserror::Error;
@@ -60,21 +61,12 @@ impl DefaultBackend {
         &self,
         org_name: &str,
         repo_name: &str,
-        repo_url: &Option<String>,
+        labels: BTreeMap<String, String>,
     ) -> Result<DataStoreRepository, BackendError> {
         self.database.create_repo(org_name, repo_name).await?;
-
-        if let Some(repo_url) = repo_url {
-            self.database
-                .update_repo_metadata(
-                    org_name,
-                    repo_name,
-                    UpdateRepoMetadata {
-                        repo_url: Some(repo_url.to_string()),
-                    },
-                )
-                .await?;
-        }
+        self.database
+            .set_repo_labels(org_name, repo_name, labels)
+            .await?;
 
         let repo = self.database.get_repo(&org_name, repo_name).await?;
 
@@ -103,25 +95,16 @@ impl DefaultBackend {
         Ok(self.database.delete_repo(org_name, repo_name).await?)
     }
 
-    pub async fn get_repo_metadata(
+    pub async fn update_repo(
         &self,
         org_name: &str,
         repo_name: &str,
-    ) -> Result<DataStoreRepositoryMetadata, BackendError> {
-        let metadata = self.database.get_repo_metadata(org_name, repo_name).await?;
-        Ok(metadata.into())
-    }
-
-    pub async fn update_repo_metadata(
-        &self,
-        org_name: &str,
-        repo_name: &str,
-        repo_url: Option<String>,
-    ) -> Result<DataStoreRepositoryMetadata, BackendError> {
+        labels: BTreeMap<String, String>,
+    ) -> Result<DataStoreRepository, BackendError> {
         self.database
-            .update_repo_metadata(org_name, repo_name, UpdateRepoMetadata { repo_url })
+            .set_repo_labels(org_name, repo_name, labels)
             .await?;
-        let metadata = self.database.get_repo_metadata(org_name, repo_name).await?;
-        Ok(metadata.into())
+        let repo = self.database.get_repo(&org_name, repo_name).await?;
+        Ok(repo.into())
     }
 }

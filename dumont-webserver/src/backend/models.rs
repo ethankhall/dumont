@@ -1,4 +1,5 @@
 use crate::database::prelude::{DbOrganization, DbRepo};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
 pub struct PaginationOptions {
@@ -53,7 +54,7 @@ impl From<Vec<crate::database::prelude::DbOrganizationModel>> for DataStoreOrgan
 pub struct DataStoreRepository {
     pub org_name: String,
     pub repo_name: String,
-    pub repo_url: Option<String>,
+    pub labels: BTreeMap<String, String>,
 }
 
 impl From<crate::database::prelude::DbRepoModel> for DataStoreRepository {
@@ -67,7 +68,7 @@ impl From<&crate::database::prelude::DbRepoModel> for DataStoreRepository {
         Self {
             org_name: source.get_org_name(),
             repo_name: source.get_repo_name(),
-            repo_url: source.metadata.repo_url.clone(),
+            labels: source.labels.labels.clone(),
         }
     }
 }
@@ -82,19 +83,6 @@ impl From<Vec<crate::database::prelude::DbRepoModel>> for DataStoreRepositoryLis
         let repos: Vec<DataStoreRepository> = source.iter().map(|it| it.into()).collect();
 
         Self { repos }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct DataStoreRepositoryMetadata {
-    pub url: Option<String>,
-}
-
-impl From<crate::database::prelude::RepoMetadata> for DataStoreRepositoryMetadata {
-    fn from(source: crate::database::prelude::RepoMetadata) -> Self {
-        Self {
-            url: source.repo_url,
-        }
     }
 }
 

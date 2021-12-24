@@ -18,7 +18,7 @@ pub async fn setup_schema() -> DbResult<DatabaseConnection> {
     db.execute(db_backed.build(&schema.create_table_from_entity(Repository)))
         .await?;
 
-    db.execute(db_backed.build(&schema.create_table_from_entity(RepositoryMetadata)))
+    db.execute(db_backed.build(&schema.create_table_from_entity(RepositoryLabel)))
         .await?;
 
     Ok(db)

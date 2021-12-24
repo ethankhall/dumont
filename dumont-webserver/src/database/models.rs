@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 pub trait DbOrganization {
     fn get_org_id(&self) -> i32;
     fn get_org_name(&self) -> String;
@@ -43,7 +45,7 @@ pub struct DbRepoModel {
     pub org_name: String,
     pub repo_id: i32,
     pub repo_name: String,
-    pub metadata: RepoMetadata,
+    pub labels: RepoLabels,
 }
 
 impl DbOrganization for DbRepoModel {
@@ -69,62 +71,49 @@ impl DbRepoModel {
     pub fn from(
         org: &super::entity::organization::Model,
         repo: &super::entity::repository::Model,
-        metadata: &super::entity::repository_metadata::Model,
+        labels: &Vec<super::entity::repository_label::Model>,
     ) -> Self {
         Self {
             org_id: org.org_id,
             org_name: org.org_name.clone(),
             repo_id: repo.repo_id,
             repo_name: repo.repo_name.clone(),
-            metadata: metadata.into(),
-        }
-    }
-
-    pub fn from_optional_meta(
-        org: &super::entity::organization::Model,
-        repo: &super::entity::repository::Model,
-        metadata: &Option<super::entity::repository_metadata::Model>,
-    ) -> Self {
-        let metadata = match metadata {
-            Some(meta) => meta.into(),
-            None => Default::default(),
-        };
-        Self {
-            org_id: org.org_id,
-            org_name: org.org_name.clone(),
-            repo_id: repo.repo_id,
-            repo_name: repo.repo_name.clone(),
-            metadata,
+            labels: labels.into(),
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct RepoMetadata {
-    pub repo_url: Option<String>,
+pub struct RepoLabels {
+    pub labels: BTreeMap<String, String>,
 }
 
-impl From<&super::entity::repository_metadata::Model> for RepoMetadata {
-    fn from(source: &super::entity::repository_metadata::Model) -> Self {
-        Self {
-            repo_url: source.repo_url.clone(),
+impl From<&Vec<super::entity::repository_label::Model>> for RepoLabels {
+    fn from(source: &Vec<super::entity::repository_label::Model>) -> Self {
+        let mut labels: BTreeMap<String, String> = Default::default();
+        for value in source.iter() {
+            labels.insert(value.label_name.to_string(), value.label_value.to_string());
         }
+
+        Self { labels }
     }
 }
 
-impl From<super::entity::repository_metadata::Model> for RepoMetadata {
-    fn from(source: super::entity::repository_metadata::Model) -> Self {
+impl From<Vec<super::entity::repository_label::Model>> for RepoLabels {
+    fn from(source: Vec<super::entity::repository_label::Model>) -> Self {
         (&source).into()
     }
 }
 
-impl Default for RepoMetadata {
+impl Default for RepoLabels {
     fn default() -> Self {
-        Self { repo_url: None }
+        Self {
+            labels: Default::default(),
+        }
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct UpdateRepoMetadata {
-    pub repo_url: Option<String>,
+    pub labels: BTreeMap<String, String>,
 }

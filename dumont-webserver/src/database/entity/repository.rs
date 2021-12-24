@@ -24,8 +24,6 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     Organization,
-    #[sea_orm(has_one = "super::repository_metadata::Entity")]
-    RepositoryMetadata,
     #[sea_orm(has_many = "super::repository_label::Entity")]
     RepositoryLabel,
     #[sea_orm(has_many = "super::repository_revision::Entity")]
@@ -35,12 +33,6 @@ pub enum Relation {
 impl Related<super::organization::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Organization.def()
-    }
-}
-
-impl Related<super::repository_metadata::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::RepositoryMetadata.def()
     }
 }
 

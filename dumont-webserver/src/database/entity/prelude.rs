@@ -3,6 +3,5 @@
 pub use super::organization::Entity as Organization;
 pub use super::repository::Entity as Repository;
 pub use super::repository_label::Entity as RepositoryLabel;
-pub use super::repository_metadata::Entity as RepositoryMetadata;
 pub use super::repository_revision::Entity as RepositoryRevision;
 pub use super::repository_revision_label::Entity as RepositoryRevisionLabel;

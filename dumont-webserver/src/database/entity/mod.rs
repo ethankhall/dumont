@@ -5,6 +5,5 @@ pub mod prelude;
 pub mod organization;
 pub mod repository;
 pub mod repository_label;
-pub mod repository_metadata;
 pub mod repository_revision;
 pub mod repository_revision_label;

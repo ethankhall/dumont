@@ -4,24 +4,26 @@ use crate::backend::models::PaginationOptions;
 use crate::database::entity::{self, prelude::*};
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
+use std::collections::BTreeMap;
+use tracing::info;
 use tracing_attributes::instrument;
 
 #[async_trait]
 pub trait RepoQueries {
     async fn create_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>;
 
-    async fn update_repo_metadata(
+    async fn set_repo_labels(
         &self,
         org_name: &str,
         repo_name: &str,
-        new_metadata: UpdateRepoMetadata,
-    ) -> DbResult<DbRepoModel>;
+        labels: BTreeMap<String, String>,
+    ) -> DbResult<()>;
 
-    async fn get_repo_metadata(&self, org_name: &str, repo_name: &str) -> DbResult<RepoMetadata>;
-    async fn sql_get_repo_metadata(
+    async fn get_repo_labels(&self, org_name: &str, repo_name: &str) -> DbResult<RepoLabels>;
+    async fn sql_get_repo_labels(
         &self,
         repo: &entity::repository::Model,
-    ) -> DbResult<entity::repository_metadata::Model>;
+    ) -> DbResult<Vec<entity::repository_label::Model>>;
 
     async fn get_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>;
     async fn sql_get_repo(
@@ -76,61 +78,65 @@ impl RepoQueries for PostresDatabase {
         self.get_repo_by_id(res.last_insert_id).await
     }
 
-    #[instrument(level = "debug", skip(repo, self))]
-    async fn sql_get_repo_metadata(
-        &self,
-        repo: &entity::repository::Model,
-    ) -> DbResult<entity::repository_metadata::Model> {
-        let metadata_resp = repo.find_related(RepositoryMetadata).one(&self.db).await?;
-
-        match metadata_resp {
-            Some(metadata) => Ok(metadata),
-            None => {
-                let new_model = entity::repository_metadata::ActiveModel {
-                    repository_metadata_id: Unset(None),
-                    repo_id: Set(repo.repo_id),
-                    repo_url: Unset(None),
-                };
-
-                let model = new_model.save(&self.db).await?;
-                Ok(
-                    RepositoryMetadata::find_by_id(model.repository_metadata_id.unwrap())
-                        .one(&self.db)
-                        .await?
-                        .expect("ID provided should be avaliable"),
-                )
-            }
-        }
-    }
-
-    async fn get_repo_metadata(&self, org_name: &str, repo_name: &str) -> DbResult<RepoMetadata> {
+    #[instrument(level = "debug", skip(self))]
+    async fn get_repo_labels(&self, org_name: &str, repo_name: &str) -> DbResult<RepoLabels> {
         let repo = self
             .sql_get_repo(&org_name.to_string(), &repo_name.to_string())
             .await?;
-        let metadata = self.sql_get_repo_metadata(&repo).await?;
 
-        Ok(metadata.into())
+        let labels = self.sql_get_repo_labels(&repo).await?;
+        Ok(labels.into())
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn update_repo_metadata(
+    async fn set_repo_labels(
         &self,
         org_name: &str,
         repo_name: &str,
-        new_metadata: UpdateRepoMetadata,
-    ) -> DbResult<DbRepoModel> {
+        labels: BTreeMap<String, String>,
+    ) -> DbResult<()> {
         let repo = self
             .sql_get_repo(&org_name.to_string(), &repo_name.to_string())
             .await?;
-        let metadata = self.sql_get_repo_metadata(&repo).await?;
-        let mut metadata: entity::repository_metadata::ActiveModel = metadata.into();
 
-        if let Some(repo_url) = new_metadata.repo_url {
-            metadata.repo_url = Set(Some(repo_url));
+        let mut new_labels = Vec::default();
+
+        for (key, value) in labels {
+            new_labels.push(entity::repository_label::ActiveModel {
+                repo_id: Set(repo.repo_id),
+                label_name: Set(key.to_string()),
+                label_value: Set(value.to_string()),
+                ..Default::default()
+            })
         }
 
-        metadata.save(&self.db).await?;
-        self.get_repo_by_id(repo.repo_id).await
+        let new_label_count = new_labels.len();
+
+        let txn = self.db.begin().await?;
+
+        let del = RepositoryLabel::delete_many()
+            .filter(entity::repository_label::Column::RepoId.eq(repo.repo_id))
+            .exec(&txn)
+            .await?;
+        if !new_labels.is_empty() {
+            RepositoryLabel::insert_many(new_labels).exec(&txn).await?;
+        }
+
+        txn.commit().await?;
+
+        info!(
+            "Deleted {} rows, Inserted {} rows",
+            del.rows_affected, new_label_count
+        );
+        Ok(())
+    }
+
+    #[instrument(level = "debug", skip(repo, self))]
+    async fn sql_get_repo_labels(
+        &self,
+        repo: &entity::repository::Model,
+    ) -> DbResult<Vec<entity::repository_label::Model>> {
+        Ok(repo.find_related(RepositoryLabel).all(&self.db).await?)
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -150,9 +156,9 @@ impl RepoQueries for PostresDatabase {
             .one(&self.db)
             .await?
             .expect("Org to exist for repo");
-        let metadata = self.sql_get_repo_metadata(&found_repo).await?;
+        let labels = self.sql_get_repo_labels(&found_repo).await?;
 
-        Ok(DbRepoModel::from(&found_org, &found_repo, &metadata))
+        Ok(DbRepoModel::from(&found_org, &found_repo, &labels))
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -163,9 +169,9 @@ impl RepoQueries for PostresDatabase {
             .one(&self.db)
             .await?
             .expect("Org to exist for repo");
-        let metadata = self.sql_get_repo_metadata(&repo).await?;
+        let labels = self.sql_get_repo_labels(&repo).await?;
 
-        Ok(DbRepoModel::from(&org, &repo, &metadata))
+        Ok(DbRepoModel::from(&org, &repo, &labels))
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -177,18 +183,20 @@ impl RepoQueries for PostresDatabase {
         use entity::repository::Column;
 
         let org = self.sql_get_org(org_name).await?;
-        let resp = org
+        let select = org
             .find_related(Repository)
-            .find_also_related(RepositoryMetadata)
             .order_by_asc(Column::OrgId)
             .paginate(&self.db, pagination.page_size)
             .fetch_page(pagination.page_number)
             .await?;
 
-        Ok(resp
-            .iter()
-            .map(|(repo, metadata)| DbRepoModel::from_optional_meta(&org, repo, metadata))
-            .collect())
+        let mut repos = Vec::new();
+        for repo in select {
+            let labels = self.sql_get_repo_labels(&repo).await?;
+            repos.push(DbRepoModel::from(&org, &repo, &labels));
+        }
+
+        Ok(repos)
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -253,21 +261,17 @@ mod integ_test {
         assert_eq!(repo.repo_name, "bar");
         assert_eq!(repo.org_name, "foo");
 
-        let metadata = db.get_repo_metadata("foo", "bar").await.unwrap();
-        assert_eq!(metadata.repo_url, None);
+        let metadata = db.get_repo_labels("foo", "bar").await.unwrap();
+        assert_eq!(metadata.labels.len(), 0);
 
-        let metadata = db
-            .update_repo_metadata(
-                "foo",
-                "bar",
-                UpdateRepoMetadata {
-                    repo_url: Some("https://google.com".to_owned()),
-                },
-            )
-            .await
-            .unwrap();
+        let labels = BTreeMap::new();
+        labels.insert("scm_url".to_owned(), "https://google.com".to_owned());
+
+        let metadata = db.set_repo_labels("foo", "bar", labels).await.unwrap();
+
+        let labels = db.get_repo_labels("foo", "bar").await.unwrap();
         assert_eq!(
-            metadata.metadata.repo_url,
+            labels.labels.get("scm_url"),
             Some("https://google.com".to_owned())
         );
 

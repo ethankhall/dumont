@@ -11,19 +11,12 @@ CREATE TABLE repository(
     UNIQUE(org_id, repo_name)
 );
 
-CREATE TABLE repository_metadata(
-    repository_metadata_id SERIAL PRIMARY KEY NOT NULL,
-    repo_id INTEGER NOT NULL REFERENCES repository(repo_id) ON DELETE CASCADE,
-    repo_url TEXT,
-    UNIQUE(repo_id)
-);
-
 CREATE TABLE repository_label(
     repository_label_id SERIAL PRIMARY KEY NOT NULL,
     repo_id INTEGER NOT NULL REFERENCES repository(repo_id) ON DELETE CASCADE,
     label_name TEXT NOT NULL,
     label_value TEXT NOT NULL,
-    created_at timestamp NOT NULL,
+    created_at timestamp NOT NULL DEFAULT now(),
     UNIQUE(repo_id, label_name)
 );
 
@@ -32,7 +25,7 @@ CREATE TABLE repository_revision(
     repo_id INTEGER NOT NULL REFERENCES repository(repo_id) ON DELETE CASCADE,
     revision_name TEXT NOT NULL,
     scm_id TEXT NOT NULL,
-    created_at timestamp NOT NULL,
+    created_at timestamp NOT NULL DEFAULT now(),
     artifact_url TEXT,
     UNIQUE(repo_id, revision_name)
 );
@@ -42,6 +35,6 @@ CREATE TABLE repository_revision_label(
     revision_id INTEGER NOT NULL REFERENCES repository_revision(revision_id) ON DELETE CASCADE,
     label_name TEXT NOT NULL,
     label_value TEXT NOT NULL,
-    created_at timestamp NOT NULL,
+    created_at timestamp NOT NULL DEFAULT now(),
     UNIQUE(revision_id, label_name)
 );
