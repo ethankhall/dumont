@@ -11,16 +11,24 @@ pub trait RepoQueries {
     async fn create_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>;
 
     async fn update_repo_metadata(
-            &self,
-            org_name: &str, repo_name: &str,
-            new_metadata: UpdateRepoMetadata,
-        ) -> DbResult<DbRepoModel>;
+        &self,
+        org_name: &str,
+        repo_name: &str,
+        new_metadata: UpdateRepoMetadata,
+    ) -> DbResult<DbRepoModel>;
 
     async fn get_repo_metadata(&self, org_name: &str, repo_name: &str) -> DbResult<RepoMetadata>;
-    async fn sql_get_repo_metadata(&self, repo: &entity::repository::Model) -> DbResult<entity::repository_metadata::Model>;
+    async fn sql_get_repo_metadata(
+        &self,
+        repo: &entity::repository::Model,
+    ) -> DbResult<entity::repository_metadata::Model>;
 
     async fn get_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>;
-    async fn sql_get_repo(&self, org_name: &str, repo_name: &str) -> DbResult<entity::repository::Model>;
+    async fn sql_get_repo(
+        &self,
+        org_name: &str,
+        repo_name: &str,
+    ) -> DbResult<entity::repository::Model>;
 
     async fn get_repo_by_id(&self, repo_id: i32) -> DbResult<DbRepoModel>;
 
@@ -36,9 +44,8 @@ pub trait RepoQueries {
 #[async_trait]
 impl RepoQueries for PostresDatabase {
     #[instrument(level = "debug", skip(self))]
-    async fn create_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>
-    {
-        use entity::{repository};
+    async fn create_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel> {
+        use entity::repository;
 
         let repo_name = repo_name.to_string();
         let org_name = org_name.to_string();
@@ -64,12 +71,16 @@ impl RepoQueries for PostresDatabase {
             ..Default::default()
         };
 
-        let res: InsertResult<repository::ActiveModel> = Repository::insert(model).exec(&self.db).await?;
+        let res: InsertResult<repository::ActiveModel> =
+            Repository::insert(model).exec(&self.db).await?;
         self.get_repo_by_id(res.last_insert_id).await
     }
 
     #[instrument(level = "debug", skip(repo, self))]
-    async fn sql_get_repo_metadata(&self, repo: &entity::repository::Model) -> DbResult<entity::repository_metadata::Model> {
+    async fn sql_get_repo_metadata(
+        &self,
+        repo: &entity::repository::Model,
+    ) -> DbResult<entity::repository_metadata::Model> {
         let metadata_resp = repo.find_related(RepositoryMetadata).one(&self.db).await?;
 
         match metadata_resp {
@@ -78,17 +89,24 @@ impl RepoQueries for PostresDatabase {
                 let new_model = entity::repository_metadata::ActiveModel {
                     repository_metadata_id: Unset(None),
                     repo_id: Set(repo.repo_id),
-                    repo_url: Unset(None)
+                    repo_url: Unset(None),
                 };
 
                 let model = new_model.save(&self.db).await?;
-                Ok(RepositoryMetadata::find_by_id(model.repository_metadata_id.unwrap()).one(&self.db).await?.expect("ID provided should be avaliable"))
+                Ok(
+                    RepositoryMetadata::find_by_id(model.repository_metadata_id.unwrap())
+                        .one(&self.db)
+                        .await?
+                        .expect("ID provided should be avaliable"),
+                )
             }
         }
     }
 
     async fn get_repo_metadata(&self, org_name: &str, repo_name: &str) -> DbResult<RepoMetadata> {
-        let repo = self.sql_get_repo(&org_name.to_string(), &repo_name.to_string()).await?;
+        let repo = self
+            .sql_get_repo(&org_name.to_string(), &repo_name.to_string())
+            .await?;
         let metadata = self.sql_get_repo_metadata(&repo).await?;
 
         Ok(metadata.into())
@@ -97,10 +115,13 @@ impl RepoQueries for PostresDatabase {
     #[instrument(level = "debug", skip(self))]
     async fn update_repo_metadata(
         &self,
-        org_name: &str, repo_name: &str,
+        org_name: &str,
+        repo_name: &str,
         new_metadata: UpdateRepoMetadata,
     ) -> DbResult<DbRepoModel> {
-        let repo = self.sql_get_repo(&org_name.to_string(), &repo_name.to_string()).await?;
+        let repo = self
+            .sql_get_repo(&org_name.to_string(), &repo_name.to_string())
+            .await?;
         let metadata = self.sql_get_repo_metadata(&repo).await?;
         let mut metadata: entity::repository_metadata::ActiveModel = metadata.into();
 
@@ -119,24 +140,29 @@ impl RepoQueries for PostresDatabase {
             Some(repo) => repo,
             None => {
                 return Err(DatabaseError::NotFound {
-                    error: NotFoundError::RepoById {
-                        repo_id
-                    },
+                    error: NotFoundError::RepoById { repo_id },
                 });
             }
         };
 
-        let found_org = found_repo.find_related(Organization).one(&self.db).await?.expect("Org to exist for repo");
+        let found_org = found_repo
+            .find_related(Organization)
+            .one(&self.db)
+            .await?
+            .expect("Org to exist for repo");
         let metadata = self.sql_get_repo_metadata(&found_repo).await?;
 
         Ok(DbRepoModel::from(&found_org, &found_repo, &metadata))
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn get_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>
-    {
+    async fn get_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel> {
         let repo = self.sql_get_repo(org_name, repo_name).await?;
-        let org = repo.find_related(Organization).one(&self.db).await?.expect("Org to exist for repo");
+        let org = repo
+            .find_related(Organization)
+            .one(&self.db)
+            .await?
+            .expect("Org to exist for repo");
         let metadata = self.sql_get_repo_metadata(&repo).await?;
 
         Ok(DbRepoModel::from(&org, &repo, &metadata))
@@ -151,34 +177,43 @@ impl RepoQueries for PostresDatabase {
         use entity::repository::Column;
 
         let org = self.sql_get_org(org_name).await?;
-        let resp = org.find_related(Repository)
+        let resp = org
+            .find_related(Repository)
             .find_also_related(RepositoryMetadata)
             .order_by_asc(Column::OrgId)
             .paginate(&self.db, pagination.page_size)
             .fetch_page(pagination.page_number)
             .await?;
 
-        Ok(resp.iter().map(|(repo, metadata)| DbRepoModel::from_optional_meta(&org, repo, metadata)).collect())
+        Ok(resp
+            .iter()
+            .map(|(repo, metadata)| DbRepoModel::from_optional_meta(&org, repo, metadata))
+            .collect())
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn delete_repo(&self, org_name: &str, repo_name: &str) -> DbResult<bool>
-    {
+    async fn delete_repo(&self, org_name: &str, repo_name: &str) -> DbResult<bool> {
         let repo = self.sql_get_repo(org_name, repo_name).await?;
         let repo: entity::repository::ActiveModel = repo.into();
         let res = repo.delete(&self.db).await?;
 
         if res.rows_affected == 0 {
             return Err(DatabaseError::NotFound {
-                error: NotFoundError::Repo { org: org_name.to_owned(), repo: repo_name.to_owned() },
+                error: NotFoundError::Repo {
+                    org: org_name.to_owned(),
+                    repo: repo_name.to_owned(),
+                },
             });
         }
 
         Ok(res.rows_affected == 1)
     }
 
-    async fn sql_get_repo(&self, org_name: &str, repo_name: &str) -> DbResult<entity::repository::Model>
-    {
+    async fn sql_get_repo(
+        &self,
+        org_name: &str,
+        repo_name: &str,
+    ) -> DbResult<entity::repository::Model> {
         use entity::repository::Column;
 
         let org = self.sql_get_org(org_name).await?;

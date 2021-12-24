@@ -125,17 +125,21 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let is_terminal = atty::is(atty::Stream::Stdout) && cfg!(debug_assertions);
     let pretty_logger = if is_terminal {
-        Some(tracing_subscriber::fmt::layer()
-        .event_format(Format::default().pretty())
-        .fmt_fields(PrettyFields::new()))
+        Some(
+            tracing_subscriber::fmt::layer()
+                .event_format(Format::default().pretty())
+                .fmt_fields(PrettyFields::new()),
+        )
     } else {
         None
     };
 
     let json_logger = if !is_terminal {
-        Some(tracing_subscriber::fmt::layer()
-        .event_format(Format::default().json().flatten_event(true))
-        .fmt_fields(JsonFields::new()))
+        Some(
+            tracing_subscriber::fmt::layer()
+                .event_format(Format::default().json().flatten_event(true))
+                .fmt_fields(JsonFields::new()),
+        )
     } else {
         None
     };

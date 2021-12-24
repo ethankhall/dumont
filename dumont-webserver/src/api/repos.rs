@@ -1,8 +1,8 @@
 use super::canned_response::ApplicationError;
-use crate::backend::{BackendError};
+use super::prelude::*;
+use crate::backend::BackendError;
 use tracing::info;
 use warp::{Filter, Rejection, Reply};
-use super::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
@@ -43,18 +43,18 @@ pub struct GetRepositoryMetadata {
 
 impl From<crate::backend::models::DataStoreRepositoryMetadata> for GetRepositoryMetadata {
     fn from(model: crate::backend::models::DataStoreRepositoryMetadata) -> Self {
-        Self {
-            scm_url: model.url
-        }
+        Self { scm_url: model.url }
     }
 }
 
-pub fn create_repo_api(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+pub fn create_repo_api(
+    db: crate::Db,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     create_repo(db.clone())
-    .or(get_repos(db.clone()))
-    .or(get_repo(db.clone()))
-    .or(delete_repo(db.clone()))
-    .or(get_metadata_repo(db.clone()))
+        .or(get_repos(db.clone()))
+        .or(get_repo(db.clone()))
+        .or(delete_repo(db.clone()))
+        .or(get_metadata_repo(db.clone()))
 }
 
 fn create_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -85,10 +85,15 @@ fn get_repos(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejecti
         .and_then(get_repos_impl)
 }
 
-async fn get_repos_impl(org: String, pageination: ApiPagination, db: crate::Db) -> Result<impl Reply, Rejection> {
+async fn get_repos_impl(
+    org: String,
+    pageination: ApiPagination,
+    db: crate::Db,
+) -> Result<impl Reply, Rejection> {
     let result = db.get_repos(&org, pageination.into()).await;
-    let result: Result<DataWrapper<Vec<GetRepository>>, BackendError> =
-        result.map(|repo_list| DataWrapper::new(repo_list.repos.iter().map(GetRepository::from).collect()));
+    let result: Result<DataWrapper<Vec<GetRepository>>, BackendError> = result.map(|repo_list| {
+        DataWrapper::new(repo_list.repos.iter().map(GetRepository::from).collect())
+    });
     wrap_body(result.map_err(ApplicationError::from_context))
 }
 
@@ -100,11 +105,7 @@ fn get_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejectio
         .and_then(get_repo_impl)
 }
 
-async fn get_repo_impl(
-    org: String,
-    repo: String,
-    db: crate::Db,
-) -> Result<impl Reply, Rejection> {
+async fn get_repo_impl(org: String, repo: String, db: crate::Db) -> Result<impl Reply, Rejection> {
     let result = db.get_repo(&org, &repo).await;
     let result: Result<GetRepository, BackendError> = result.map(GetRepository::from);
     wrap_body(result.map_err(ApplicationError::from_context))
@@ -128,7 +129,9 @@ async fn delete_repo_impl(
     wrap_body(result.map_err(ApplicationError::from_context))
 }
 
-fn get_metadata_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn get_metadata_repo(
+    db: crate::Db,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo/{{repo}}/metadata");
     warp::path!("api" / "org" / String / "repo" / String / "metadata")
         .and(warp::get())
@@ -142,6 +145,7 @@ async fn get_metadata_repo_impl(
     db: crate::Db,
 ) -> Result<impl Reply, Rejection> {
     let result = db.get_repo_metadata(&org, &repo).await;
-    let result: Result<GetRepositoryMetadata, BackendError> = result.map(GetRepositoryMetadata::from);
+    let result: Result<GetRepositoryMetadata, BackendError> =
+        result.map(GetRepositoryMetadata::from);
     wrap_body(result.map_err(ApplicationError::from_context))
 }

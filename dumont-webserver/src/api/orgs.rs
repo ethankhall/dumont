@@ -1,8 +1,8 @@
 use super::canned_response::ApplicationError;
-use crate::backend::{BackendError};
+use super::prelude::*;
+use crate::backend::BackendError;
 use tracing::info;
 use warp::{Filter, Rejection, Reply};
-use super::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
@@ -27,11 +27,13 @@ impl From<&crate::backend::models::DataStoreOrganization> for GetOrganization {
     }
 }
 
-pub fn create_org_api(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+pub fn create_org_api(
+    db: crate::Db,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     create_org(db.clone())
-    .or(delete_org(db.clone()))
-    .or(get_orgs(db.clone()))
-    .or(get_an_org(db.clone()))
+        .or(delete_org(db.clone()))
+        .or(get_orgs(db.clone()))
+        .or(get_an_org(db.clone()))
 }
 
 fn create_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -43,10 +45,7 @@ fn create_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Reject
         .and_then(create_org_impl)
 }
 
-async fn create_org_impl(
-    org: CreateOrganization,
-    db: crate::Db,
-) -> Result<impl Reply, Rejection> {
+async fn create_org_impl(org: CreateOrganization, db: crate::Db) -> Result<impl Reply, Rejection> {
     let result = db.create_organization(&org.org).await;
     let result = result.map(|org| GetOrganization { org: org.name });
     wrap_body(result.map_err(ApplicationError::from_context))
@@ -60,10 +59,7 @@ fn delete_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Reject
         .and_then(delete_org_impl)
 }
 
-async fn delete_org_impl(
-    org_name: String,
-    db: crate::Db,
-) -> Result<impl Reply, Rejection> {
+async fn delete_org_impl(org_name: String, db: crate::Db) -> Result<impl Reply, Rejection> {
     let result = db.delete_organization(&org_name).await;
     let result: Result<DeleteStatus, BackendError> = result.map(DeleteStatus::from);
     wrap_body(result.map_err(ApplicationError::from_context))
@@ -78,13 +74,11 @@ fn get_orgs(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejectio
         .and_then(get_orgs_impl)
 }
 
-async fn get_orgs_impl(
-    pageination: ApiPagination,
-    db: crate::Db,
-) -> Result<impl Reply, Rejection> {
+async fn get_orgs_impl(pageination: ApiPagination, db: crate::Db) -> Result<impl Reply, Rejection> {
     let result = db.get_organizations(pageination.into()).await;
-    let result: Result<DataWrapper<Vec<GetOrganization>>, BackendError> =
-        result.map(|orgs_list| DataWrapper::new(orgs_list.orgs.iter().map(GetOrganization::from).collect()));
+    let result: Result<DataWrapper<Vec<GetOrganization>>, BackendError> = result.map(|orgs_list| {
+        DataWrapper::new(orgs_list.orgs.iter().map(GetOrganization::from).collect())
+    });
     wrap_body(result.map_err(ApplicationError::from_context))
 }
 
@@ -96,11 +90,9 @@ fn get_an_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Reject
         .and_then(get_an_org_impl)
 }
 
-async fn get_an_org_impl(
-    org_name: String,
-    db: crate::Db,
-) -> Result<impl Reply, Rejection> {
+async fn get_an_org_impl(org_name: String, db: crate::Db) -> Result<impl Reply, Rejection> {
     let result = db.get_organization(&org_name).await;
-    let result: Result<GetOrganization, BackendError> = result.map(|org| GetOrganization::from(org));
+    let result: Result<GetOrganization, BackendError> =
+        result.map(|org| GetOrganization::from(org));
     wrap_body(result.map_err(ApplicationError::from_context))
 }

@@ -92,7 +92,9 @@ pub struct DataStoreRepositoryMetadata {
 
 impl From<crate::database::prelude::RepoMetadata> for DataStoreRepositoryMetadata {
     fn from(source: crate::database::prelude::RepoMetadata) -> Self {
-        Self { url: source.repo_url }
+        Self {
+            url: source.repo_url,
+        }
     }
 }
 

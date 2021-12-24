@@ -6,14 +6,13 @@ use warp::{Filter, Reply};
 pub async fn create_filters(
     db: crate::Db,
 ) -> impl Filter<Extract = impl Reply> + Clone + Send + Sync + 'static {
-    filters::api(db)
-        .recover(canned_response::handle_rejection)
+    filters::api(db).recover(canned_response::handle_rejection)
 }
 
 pub mod prelude {
+    use crate::backend::models::PaginationOptions;
     use serde::{de::DeserializeOwned, Deserialize, Serialize};
     use warp::{reject::Reject, Filter, Rejection, Reply};
-    use crate::backend::{models::PaginationOptions};
 
     pub fn json_body<T: Send + DeserializeOwned>(
     ) -> impl Filter<Extract = (T,), Error = warp::Rejection> + Clone {
@@ -21,13 +20,13 @@ pub mod prelude {
         // (and to reject huge payloads)...
         warp::body::content_length_limit(1024 * 16).and(warp::body::json())
     }
-    
+
     pub fn with_db(
         db: crate::Db,
     ) -> impl Filter<Extract = (crate::Db,), Error = std::convert::Infallible> + Clone {
         warp::any().map(move || db.clone())
     }
-    
+
     pub fn wrap_body<T>(body: Result<T, impl Reject>) -> Result<impl Reply, Rejection>
     where
         T: Serialize,
@@ -38,16 +37,16 @@ pub mod prelude {
             }
             Ok(value) => value,
         };
-    
+
         Ok(warp::reply::json(&body))
     }
 
     #[derive(Deserialize, Serialize)]
     pub struct DataWrapper<T: Serialize> {
-        pub data: T
+        pub data: T,
     }
 
-    impl <T: Serialize> DataWrapper<T> {
+    impl<T: Serialize> DataWrapper<T> {
         pub fn new(data: T) -> Self {
             Self { data }
         }
@@ -79,7 +78,7 @@ pub mod prelude {
 
     #[derive(Deserialize, Serialize)]
     pub struct DeleteStatus {
-        pub deleted: bool
+        pub deleted: bool,
     }
 
     impl From<bool> for DeleteStatus {
@@ -89,14 +88,11 @@ pub mod prelude {
     }
 }
 
-
 mod filters {
     use warp::{Filter, Rejection, Reply};
 
     pub fn api(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    
-        super::orgs::create_org_api(db.clone())
-            .or(super::repos::create_repo_api(db.clone()))
+        super::orgs::create_org_api(db.clone()).or(super::repos::create_repo_api(db.clone()))
     }
 }
 
@@ -124,21 +120,19 @@ mod canned_response {
                     code: StatusCode::NOT_FOUND,
                     message,
                 },
-                BackendError::DatabaseError { source } => {
-                    match source {
-                        DatabaseError::NotFound { error } => Self {
-                            code: StatusCode::NOT_FOUND,
-                            message: error.to_string(),
-                        },
-                        _ => {
-                            error!("Internal Error: {}", source);
-                            Self {
-                                code: StatusCode::INTERNAL_SERVER_ERROR,
-                                message,
-                            }
+                BackendError::DatabaseError { source } => match source {
+                    DatabaseError::NotFound { error } => Self {
+                        code: StatusCode::NOT_FOUND,
+                        message: error.to_string(),
+                    },
+                    _ => {
+                        error!("Internal Error: {}", source);
+                        Self {
+                            code: StatusCode::INTERNAL_SERVER_ERROR,
+                            message,
                         }
-                    }  
-                }
+                    }
+                },
             }
         }
     }

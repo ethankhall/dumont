@@ -108,15 +108,17 @@ impl OrganizationQueries for PostresDatabase {
         use entity::organization::Column;
 
         let resp = Organization::find()
-        .filter(Column::OrgName.eq(org_name.clone()))
-        .one(&self.db)
-        .await?;
+            .filter(Column::OrgName.eq(org_name.clone()))
+            .one(&self.db)
+            .await?;
 
         match resp {
             Some(org) => Ok(org),
             None => {
                 return Err(DatabaseError::NotFound {
-                    error: NotFoundError::Organization { org: org_name.to_owned() },
+                    error: NotFoundError::Organization {
+                        org: org_name.to_owned(),
+                    },
                 })
             }
         }

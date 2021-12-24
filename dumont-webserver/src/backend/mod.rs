@@ -36,10 +36,7 @@ impl DefaultBackend {
         Ok(new_org.into())
     }
 
-    pub async fn delete_organization(
-        &self,
-        org_name: &str,
-    ) -> Result<bool, BackendError> {
+    pub async fn delete_organization(&self, org_name: &str) -> Result<bool, BackendError> {
         Ok(self.database.delete_org(org_name).await?)
     }
 
@@ -70,7 +67,8 @@ impl DefaultBackend {
         if let Some(repo_url) = repo_url {
             self.database
                 .update_repo_metadata(
-                    org_name, repo_name,
+                    org_name,
+                    repo_name,
                     UpdateRepoMetadata {
                         repo_url: Some(repo_url.to_string()),
                     },
@@ -81,7 +79,11 @@ impl DefaultBackend {
         Ok(repo.into())
     }
 
-    pub async fn get_repos(&self, org_name: &str, pagination: PaginationOptions) -> Result<DataStoreRepositoryList, BackendError> {
+    pub async fn get_repos(
+        &self,
+        org_name: &str,
+        pagination: PaginationOptions,
+    ) -> Result<DataStoreRepositoryList, BackendError> {
         let repos = self.database.list_repo(&org_name, pagination).await?;
         Ok(repos.into())
     }
@@ -95,11 +97,7 @@ impl DefaultBackend {
         Ok(repo.into())
     }
 
-    pub async fn delete_repo(
-        &self,
-        org_name: &str,
-        repo_name: &str,
-    ) -> Result<bool, BackendError> {
+    pub async fn delete_repo(&self, org_name: &str, repo_name: &str) -> Result<bool, BackendError> {
         Ok(self.database.delete_repo(org_name, repo_name).await?)
     }
 
