@@ -247,35 +247,39 @@ mod integ_test {
             db: setup_schema().await.unwrap(),
         };
 
-        let new_org = db.create_org("foo".to_owned()).await.unwrap();
-        let repo = db.create_repo(&new_org, "bar".to_owned()).await.unwrap();
+        db.create_org("foo".to_owned()).await.unwrap();
+        let repo = db.create_repo("foo", "bar").await.unwrap();
 
         assert_eq!(repo.repo_name, "bar");
-        assert_eq!(repo.org, new_org);
+        assert_eq!(repo.org_name, "foo");
 
-        let metadata = db.get_repo_metadata(&repo).await.unwrap();
+        let metadata = db.get_repo_metadata("foo", "bar").await.unwrap();
         assert_eq!(metadata.repo_url, None);
 
         let metadata = db
             .update_repo_metadata(
-                &repo,
+                "foo",
+                "bar",
                 UpdateRepoMetadata {
                     repo_url: Some("https://google.com".to_owned()),
                 },
             )
             .await
             .unwrap();
-        assert_eq!(metadata.repo_url, Some("https://google.com".to_owned()));
+        assert_eq!(
+            metadata.metadata.repo_url,
+            Some("https://google.com".to_owned())
+        );
 
-        let repo = db.get_repo_by_id(&new_org, repo.repo_id).await.unwrap();
+        let repo = db.get_repo_by_id(repo.repo_id).await.unwrap();
         assert_eq!(repo.repo_name, "bar");
-        assert_eq!(repo.org, new_org);
+        assert_eq!(repo.org_name, "foo");
 
-        let repo = db.find_repo(&new_org, "bar".to_owned()).await.unwrap();
+        let repo = db.get_repo("foo", "bar").await.unwrap();
         assert_eq!(repo.repo_name, "bar");
-        assert_eq!(repo.org, new_org);
+        assert_eq!(repo.org_name, "foo");
 
-        match db.find_repo(&new_org, "flig".to_owned()).await {
+        match db.get_repo("foo", "flig").await {
             Err(DatabaseError::NotFound {
                 error: NotFoundError::Repo { org, repo },
             }) => {
@@ -285,10 +289,10 @@ mod integ_test {
             failed => unreachable!("Should not have gotten {:?}", failed),
         }
 
-        db.create_repo(&new_org, "flig".to_owned()).await.unwrap();
+        db.create_repo("foo", "flig").await.unwrap();
 
         let found_repos = db
-            .list_repo(&new_org, PaginationOptions::new(0, 50))
+            .list_repo("foo", PaginationOptions::new(0, 50))
             .await
             .unwrap();
         assert_eq!(found_repos.len(), 2);
@@ -296,7 +300,7 @@ mod integ_test {
         assert_eq!(found_repos[1].repo_name, "flig");
 
         assert_eq!(
-            db.list_repo(&new_org, PaginationOptions::new(1, 50))
+            db.list_repo("foo", PaginationOptions::new(1, 50))
                 .await
                 .unwrap()
                 .len(),
@@ -310,14 +314,14 @@ mod integ_test {
             db: setup_schema().await.unwrap(),
         };
 
-        let org = db.create_org("foo".to_owned()).await.unwrap();
+        db.create_org("foo".to_owned()).await.unwrap();
 
         for i in 0..100 {
-            db.create_repo(&org, format!("repo-{}", i)).await.unwrap();
+            db.create_repo("foo", &format!("repo-{}", i)).await.unwrap();
         }
 
         let found_repos = db
-            .list_repo(&org, PaginationOptions::new(0, 50))
+            .list_repo("foo", PaginationOptions::new(0, 50))
             .await
             .unwrap();
         assert_eq!(found_repos.len(), 50);
@@ -327,7 +331,7 @@ mod integ_test {
         }
 
         let found_repos = db
-            .list_repo(&org, PaginationOptions::new(1, 50))
+            .list_repo("foo", PaginationOptions::new(1, 50))
             .await
             .unwrap();
         assert_eq!(found_repos.len(), 50);
@@ -346,18 +350,18 @@ mod integ_test {
             db: setup_schema().await.unwrap(),
         };
 
-        let org = db.create_org("foo".to_owned()).await.unwrap();
+        db.create_org("foo".to_owned()).await.unwrap();
 
         for i in 0..100 {
-            db.create_repo(&org, format!("repo-{}", i)).await.unwrap();
+            db.create_repo("foo", &format!("repo-{}", i)).await.unwrap();
         }
 
         for i in 0..100 {
-            db.delete_repo(&org, format!("repo-{}", i)).await.unwrap();
+            db.delete_repo("foo", &format!("repo-{}", i)).await.unwrap();
         }
 
         let found_repos = db
-            .list_repo(&org, PaginationOptions::new(0, 50))
+            .list_repo("foo", PaginationOptions::new(0, 50))
             .await
             .unwrap();
         assert_eq!(found_repos.len(), 0);
