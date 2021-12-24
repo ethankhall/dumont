@@ -1,3 +1,5 @@
+use crate::database::prelude::{DbOrganization, DbRepo};
+
 #[derive(Debug, Clone)]
 pub struct PaginationOptions {
     pub page_number: usize,
@@ -19,14 +21,14 @@ pub struct DataStoreOrganization {
     pub name: String,
 }
 
-impl From<crate::database::prelude::DbOrganization> for DataStoreOrganization {
-    fn from(source: crate::database::prelude::DbOrganization) -> Self {
+impl From<crate::database::prelude::DbOrganizationModel> for DataStoreOrganization {
+    fn from(source: crate::database::prelude::DbOrganizationModel) -> Self {
         (&source).into()
     }
 }
 
-impl From<&crate::database::prelude::DbOrganization> for DataStoreOrganization {
-    fn from(source: &crate::database::prelude::DbOrganization) -> Self {
+impl From<&crate::database::prelude::DbOrganizationModel> for DataStoreOrganization {
+    fn from(source: &crate::database::prelude::DbOrganizationModel) -> Self {
         Self {
             id: source.org_id.clone(),
             name: source.org_name.clone(),
@@ -39,8 +41,8 @@ pub struct DataStoreOrganizationList {
     pub orgs: Vec<DataStoreOrganization>,
 }
 
-impl From<Vec<crate::database::prelude::DbOrganization>> for DataStoreOrganizationList {
-    fn from(source: Vec<crate::database::prelude::DbOrganization>) -> Self {
+impl From<Vec<crate::database::prelude::DbOrganizationModel>> for DataStoreOrganizationList {
+    fn from(source: Vec<crate::database::prelude::DbOrganizationModel>) -> Self {
         let orgs: Vec<DataStoreOrganization> = source.iter().map(|it| it.into()).collect();
 
         Self { orgs }
@@ -49,23 +51,23 @@ impl From<Vec<crate::database::prelude::DbOrganization>> for DataStoreOrganizati
 
 #[derive(Debug, Clone)]
 pub struct DataStoreRepository {
-    pub id: i32,
-    pub organization: DataStoreOrganization,
-    pub name: String,
+    pub org_name: String,
+    pub repo_name: String,
+    pub repo_url: Option<String>,
 }
 
-impl From<crate::database::prelude::DbRepo> for DataStoreRepository {
-    fn from(source: crate::database::prelude::DbRepo) -> Self {
+impl From<crate::database::prelude::DbRepoModel> for DataStoreRepository {
+    fn from(source: crate::database::prelude::DbRepoModel) -> Self {
         (&source).into()
     }
 }
 
-impl From<&crate::database::prelude::DbRepo> for DataStoreRepository {
-    fn from(source: &crate::database::prelude::DbRepo) -> Self {
+impl From<&crate::database::prelude::DbRepoModel> for DataStoreRepository {
+    fn from(source: &crate::database::prelude::DbRepoModel) -> Self {
         Self {
-            id: source.repo_id,
-            organization: source.org.clone().into(),
-            name: source.repo_name.clone(),
+            org_name: source.get_org_name(),
+            repo_name: source.get_repo_name(),
+            repo_url: source.metadata.repo_url.clone(),
         }
     }
 }
@@ -75,8 +77,8 @@ pub struct DataStoreRepositoryList {
     pub repos: Vec<DataStoreRepository>,
 }
 
-impl From<Vec<crate::database::prelude::DbRepo>> for DataStoreRepositoryList {
-    fn from(source: Vec<crate::database::prelude::DbRepo>) -> Self {
+impl From<Vec<crate::database::prelude::DbRepoModel>> for DataStoreRepositoryList {
+    fn from(source: Vec<crate::database::prelude::DbRepoModel>) -> Self {
         let repos: Vec<DataStoreRepository> = source.iter().map(|it| it.into()).collect();
 
         Self { repos }
@@ -85,10 +87,13 @@ impl From<Vec<crate::database::prelude::DbRepo>> for DataStoreRepositoryList {
 
 #[derive(Debug, Clone)]
 pub struct DataStoreRepositoryMetadata {
-    pub id: i64,
-    pub repo: DataStoreRepository,
-    pub key: String,
-    pub value: String,
+    pub url: Option<String>,
+}
+
+impl From<crate::database::prelude::RepoMetadata> for DataStoreRepositoryMetadata {
+    fn from(source: crate::database::prelude::RepoMetadata) -> Self {
+        Self { url: source.repo_url }
+    }
 }
 
 #[derive(Debug, Clone)]

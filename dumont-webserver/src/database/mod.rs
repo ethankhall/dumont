@@ -6,7 +6,7 @@ mod common_tests;
 mod org_queries;
 mod repo_queries;
 
-use sea_orm::{Database, DatabaseConnection};
+use sea_orm::{Database, ConnectOptions, DatabaseConnection};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -15,6 +15,8 @@ pub enum NotFoundError {
     Organization { org: String },
     #[error("{org}/{repo} not found")]
     Repo { org: String, repo: String },
+    #[error("Repo with id {repo_id} not found")]
+    RepoById { repo_id: i32 },
 }
 
 #[derive(Error, Debug)]
@@ -49,7 +51,9 @@ pub struct PostresDatabase {
 
 impl PostresDatabase {
     pub async fn new<S: Into<String>>(connection_url: S) -> prelude::DbResult<Self> {
-        let db: DatabaseConnection = Database::connect(&connection_url.into()).await?;
+        let mut opts: ConnectOptions = ConnectOptions::new(connection_url.into());
+            opts.sqlx_logging(cfg!(debug_assertions));
+        let db: DatabaseConnection = Database::connect(opts).await?;
 
         Ok(Self { db })
     }

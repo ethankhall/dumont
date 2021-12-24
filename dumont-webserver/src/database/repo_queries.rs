@@ -8,44 +8,46 @@ use tracing_attributes::instrument;
 
 #[async_trait]
 pub trait RepoQueries {
-    async fn create_repo<T>(&self, org: &DbOrganization, repo_name: T) -> DbResult<DbRepo>
-    where
-        T: ToString + Send;
-    async fn update_repo_metadata(
-        &self,
-        repo: &DbRepo,
-        new_metadata: UpdateRepoMetadata,
-    ) -> DbResult<RepoMetadata>;
-    async fn get_repo_metadata(&self, repo: &DbRepo) -> DbResult<RepoMetadata>;
+    async fn create_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>;
 
-    async fn find_repo<T>(&self, org: &DbOrganization, repo_name: T) -> DbResult<DbRepo>
-    where
-        T: ToString + Send;
-    async fn get_repo_by_id(&self, org: &DbOrganization, repo_id: i32) -> DbResult<DbRepo>;
+    async fn update_repo_metadata(
+            &self,
+            org_name: &str, repo_name: &str,
+            new_metadata: UpdateRepoMetadata,
+        ) -> DbResult<DbRepoModel>;
+
+    async fn get_repo_metadata(&self, org_name: &str, repo_name: &str) -> DbResult<RepoMetadata>;
+    async fn sql_get_repo_metadata(&self, repo: &entity::repository::Model) -> DbResult<entity::repository_metadata::Model>;
+
+    async fn get_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>;
+    async fn sql_get_repo(&self, org_name: &str, repo_name: &str) -> DbResult<entity::repository::Model>;
+
+    async fn get_repo_by_id(&self, repo_id: i32) -> DbResult<DbRepoModel>;
+
     async fn list_repo(
         &self,
-        org: &DbOrganization,
+        org_name: &str,
         pagination: PaginationOptions,
-    ) -> DbResult<Vec<DbRepo>>;
-    async fn delete_repo<T>(&self, org: &DbOrganization, repo_name: T) -> DbResult<()>
-    where
-        T: ToString + Send;
+    ) -> DbResult<Vec<DbRepoModel>>;
+
+    async fn delete_repo(&self, oorg_name: &str, repo_name: &str) -> DbResult<bool>;
 }
 
 #[async_trait]
 impl RepoQueries for PostresDatabase {
-    #[instrument(level = "debug", fields(repo_name = %repo_name.to_string()), skip(self, repo_name))]
-    async fn create_repo<T>(&self, org: &DbOrganization, repo_name: T) -> DbResult<DbRepo>
-    where
-        T: ToString + Send,
+    #[instrument(level = "debug", skip(self))]
+    async fn create_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>
     {
-        use entity::repository::{ActiveModel, Column};
+        use entity::{repository};
 
         let repo_name = repo_name.to_string();
+        let org_name = org_name.to_string();
+
+        let org = self.sql_get_org(&org_name).await?;
 
         let condition = Condition::all()
-            .add(Column::RepoName.eq(repo_name.clone()))
-            .add(Column::OrgId.eq(org.org_id));
+            .add(repository::Column::RepoName.eq(repo_name.clone()))
+            .add(repository::Column::OrgId.eq(org.org_id));
         let resp = Repository::find().filter(condition).count(&self.db).await?;
         if resp != 0 {
             return Err(DatabaseError::AlreadyExists {
@@ -56,159 +58,146 @@ impl RepoQueries for PostresDatabase {
             });
         }
 
-        let model = ActiveModel {
+        let model = repository::ActiveModel {
             org_id: Set(org.org_id),
             repo_name: Set(repo_name),
             ..Default::default()
         };
 
-        let res: InsertResult<ActiveModel> = Repository::insert(model).exec(&self.db).await?;
-        self.get_repo_by_id(&org, res.last_insert_id).await
+        let res: InsertResult<repository::ActiveModel> = Repository::insert(model).exec(&self.db).await?;
+        self.get_repo_by_id(res.last_insert_id).await
     }
 
-    #[instrument(level = "debug", skip(self))]
-    async fn get_repo_metadata(&self, db_repo: &DbRepo) -> DbResult<RepoMetadata> {
-        use entity::repository_metadata::Column;
-
-        let condition = Condition::all().add(Column::RepoId.eq(db_repo.repo_id));
-        let metadata_resp = RepositoryMetadata::find()
-            .filter(condition)
-            .one(&self.db)
-            .await?;
+    #[instrument(level = "debug", skip(repo, self))]
+    async fn sql_get_repo_metadata(&self, repo: &entity::repository::Model) -> DbResult<entity::repository_metadata::Model> {
+        let metadata_resp = repo.find_related(RepositoryMetadata).one(&self.db).await?;
 
         match metadata_resp {
-            Some(metadata) => Ok(RepoMetadata {
-                repo_url: metadata.repo_url,
-            }),
-            None => Ok(RepoMetadata { repo_url: None }),
+            Some(metadata) => Ok(metadata),
+            None => {
+                let new_model = entity::repository_metadata::ActiveModel {
+                    repository_metadata_id: Unset(None),
+                    repo_id: Set(repo.repo_id),
+                    repo_url: Unset(None)
+                };
+
+                let model = new_model.save(&self.db).await?;
+                Ok(RepositoryMetadata::find_by_id(model.repository_metadata_id.unwrap()).one(&self.db).await?.expect("ID provided should be avaliable"))
+            }
         }
+    }
+
+    async fn get_repo_metadata(&self, org_name: &str, repo_name: &str) -> DbResult<RepoMetadata> {
+        let repo = self.sql_get_repo(&org_name.to_string(), &repo_name.to_string()).await?;
+        let metadata = self.sql_get_repo_metadata(&repo).await?;
+
+        Ok(metadata.into())
     }
 
     #[instrument(level = "debug", skip(self))]
     async fn update_repo_metadata(
         &self,
-        db_repo: &DbRepo,
+        org_name: &str, repo_name: &str,
         new_metadata: UpdateRepoMetadata,
-    ) -> DbResult<RepoMetadata> {
-        use entity::repository_metadata::{ActiveModel, Column};
-        let condition = Condition::all().add(Column::RepoId.eq(db_repo.repo_id));
-        let metadata = RepositoryMetadata::find()
-            .filter(condition)
-            .one(&self.db)
-            .await?;
-
-        let mut metadata: ActiveModel = match metadata {
-            Some(metadata) => metadata.into(),
-            None => ActiveModel {
-                repository_metadata_id: Unset(None),
-                repo_id: Set(db_repo.repo_id),
-                repo_url: Unset(None),
-            },
-        };
+    ) -> DbResult<DbRepoModel> {
+        let repo = self.sql_get_repo(&org_name.to_string(), &repo_name.to_string()).await?;
+        let metadata = self.sql_get_repo_metadata(&repo).await?;
+        let mut metadata: entity::repository_metadata::ActiveModel = metadata.into();
 
         if let Some(repo_url) = new_metadata.repo_url {
             metadata.repo_url = Set(Some(repo_url));
         }
 
         metadata.save(&self.db).await?;
-        self.get_repo_metadata(db_repo).await
+        self.get_repo_by_id(repo.repo_id).await
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn get_repo_by_id(&self, org: &DbOrganization, repo_id: i32) -> DbResult<DbRepo> {
+    async fn get_repo_by_id(&self, repo_id: i32) -> DbResult<DbRepoModel> {
         let found_repo = Repository::find_by_id(repo_id).one(&self.db).await?;
         let found_repo = match found_repo {
             Some(repo) => repo,
             None => {
                 return Err(DatabaseError::NotFound {
-                    error: NotFoundError::Repo {
-                        org: org.org_name.clone(),
-                        repo: repo_id.to_string(),
+                    error: NotFoundError::RepoById {
+                        repo_id
                     },
                 });
             }
         };
 
-        Ok(DbRepo::from(&org, &found_repo))
+        let found_org = found_repo.find_related(Organization).one(&self.db).await?.expect("Org to exist for repo");
+        let metadata = self.sql_get_repo_metadata(&found_repo).await?;
+
+        Ok(DbRepoModel::from(&found_org, &found_repo, &metadata))
     }
 
-    #[instrument(level = "debug", fields(repo_name = %repo_name.to_string()), skip(self, repo_name))]
-    async fn find_repo<T>(&self, org: &DbOrganization, repo_name: T) -> DbResult<DbRepo>
-    where
-        T: ToString + Send,
+    #[instrument(level = "debug", skip(self))]
+    async fn get_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>
     {
-        use entity::repository::Column;
-        let repo_name = repo_name.to_string();
-        let org = self.find_org(org.org_name.clone()).await?;
+        let repo = self.sql_get_repo(org_name, repo_name).await?;
+        let org = repo.find_related(Organization).one(&self.db).await?.expect("Org to exist for repo");
+        let metadata = self.sql_get_repo_metadata(&repo).await?;
 
-        let condition = Condition::all()
-            .add(Column::RepoName.eq(repo_name.clone()))
-            .add(Column::OrgId.eq(org.org_id));
-        let resp = Repository::find().filter(condition).one(&self.db).await?;
-        let repo = match resp {
-            None => {
-                return Err(DatabaseError::NotFound {
-                    error: NotFoundError::Repo {
-                        org: org.org_name.clone(),
-                        repo: repo_name.clone(),
-                    },
-                })
-            }
-            Some(repo) => repo,
-        };
-
-        Ok(DbRepo::from(&org, &repo))
+        Ok(DbRepoModel::from(&org, &repo, &metadata))
     }
 
     #[instrument(level = "debug", skip(self))]
     async fn list_repo(
         &self,
-        org: &DbOrganization,
+        org_name: &str,
         pagination: PaginationOptions,
-    ) -> DbResult<Vec<DbRepo>> {
+    ) -> DbResult<Vec<DbRepoModel>> {
         use entity::repository::Column;
 
-        let condition = Condition::all().add(Column::OrgId.eq(org.org_id));
-
-        let resp = Repository::find()
-            .filter(condition)
+        let org = self.sql_get_org(org_name).await?;
+        let resp = org.find_related(Repository)
+            .find_also_related(RepositoryMetadata)
             .order_by_asc(Column::OrgId)
             .paginate(&self.db, pagination.page_size)
             .fetch_page(pagination.page_number)
             .await?;
 
-        Ok(resp.iter().map(|it| DbRepo::from(org, it)).collect())
+        Ok(resp.iter().map(|(repo, metadata)| DbRepoModel::from_optional_meta(&org, repo, metadata)).collect())
     }
 
-    #[instrument(level = "debug", fields(repo_name = %repo_name.to_string()), skip(self, repo_name))]
-    async fn delete_repo<T>(&self, org: &DbOrganization, repo_name: T) -> DbResult<()>
-    where
-        T: ToString + Send,
+    #[instrument(level = "debug", skip(self))]
+    async fn delete_repo(&self, org_name: &str, repo_name: &str) -> DbResult<bool>
     {
-        use entity::repository::{ActiveModel, Column};
-        let repo_name = repo_name.to_string();
-        let org = self.find_org(org.org_name.clone()).await?;
+        let repo = self.sql_get_repo(org_name, repo_name).await?;
+        let repo: entity::repository::ActiveModel = repo.into();
+        let res = repo.delete(&self.db).await?;
+
+        if res.rows_affected == 0 {
+            return Err(DatabaseError::NotFound {
+                error: NotFoundError::Repo { org: org_name.to_owned(), repo: repo_name.to_owned() },
+            });
+        }
+
+        Ok(res.rows_affected == 1)
+    }
+
+    async fn sql_get_repo(&self, org_name: &str, repo_name: &str) -> DbResult<entity::repository::Model>
+    {
+        use entity::repository::Column;
+
+        let org = self.sql_get_org(org_name).await?;
 
         let condition = Condition::all()
-            .add(Column::RepoName.eq(repo_name.clone()))
+            .add(Column::RepoName.eq(repo_name))
             .add(Column::OrgId.eq(org.org_id));
         let resp = Repository::find().filter(condition).one(&self.db).await?;
-
-        let repo: ActiveModel = match resp {
+        match resp {
             None => {
                 return Err(DatabaseError::NotFound {
                     error: NotFoundError::Repo {
                         org: org.org_name.clone(),
-                        repo: repo_name.clone(),
+                        repo: repo_name.to_string(),
                     },
                 })
             }
-            Some(repo) => repo.into(),
-        };
-
-        repo.delete(&self.db).await?;
-
-        Ok(())
+            Some(repo) => Ok(repo),
+        }
     }
 }
 

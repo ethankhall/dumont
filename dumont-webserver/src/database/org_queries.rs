@@ -7,31 +7,23 @@ use tracing_attributes::instrument;
 
 #[async_trait]
 pub trait OrganizationQueries {
-    async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganization>
+    async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganizationModel>
     where
         T: ToString + Send;
-    async fn find_org<T>(&self, org_name: T) -> DbResult<DbOrganization>
+    async fn sql_get_org(&self, org_name: &str) -> DbResult<entity::organization::Model>;
+    async fn find_org<T>(&self, org_name: T) -> DbResult<DbOrganizationModel>
     where
         T: ToString + Send;
-    async fn list_orgs(&self, pagination: PaginationOptions) -> DbResult<Vec<DbOrganization>>;
-    async fn delete_org<T>(&self, org_name: T) -> DbResult<()>
+    async fn list_orgs(&self, pagination: PaginationOptions) -> DbResult<Vec<DbOrganizationModel>>;
+    async fn delete_org<T>(&self, org_name: T) -> DbResult<bool>
     where
         T: ToString + Send;
-}
-
-impl From<&entity::organization::Model> for DbOrganization {
-    fn from(org: &entity::organization::Model) -> Self {
-        Self {
-            org_id: org.org_id,
-            org_name: org.org_name.clone(),
-        }
-    }
 }
 
 #[async_trait]
 impl OrganizationQueries for PostresDatabase {
     #[instrument(level = "debug", fields(org_name = %org_name.to_string()), skip(self, org_name))]
-    async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganization>
+    async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganizationModel>
     where
         T: ToString + Send,
     {
@@ -61,11 +53,11 @@ impl OrganizationQueries for PostresDatabase {
             .one(&self.db)
             .await?
             .unwrap();
-        Ok(DbOrganization::from(model))
+        Ok(DbOrganizationModel::from(model))
     }
 
     #[instrument(level = "debug", fields(org_name = %org_name.to_string()), skip(self, org_name))]
-    async fn delete_org<T>(&self, org_name: T) -> DbResult<()>
+    async fn delete_org<T>(&self, org_name: T) -> DbResult<bool>
     where
         T: ToString + Send,
     {
@@ -83,36 +75,23 @@ impl OrganizationQueries for PostresDatabase {
             });
         }
 
-        Ok(())
+        Ok(true)
     }
 
     #[instrument(level = "debug", fields(org_name = %org_name.to_string()), skip(self, org_name))]
-    async fn find_org<T>(&self, org_name: T) -> DbResult<DbOrganization>
+    async fn find_org<T>(&self, org_name: T) -> DbResult<DbOrganizationModel>
     where
         T: ToString + Send,
     {
-        use entity::organization::Column;
         let org_name = org_name.to_string();
 
-        let resp = Organization::find()
-            .filter(Column::OrgName.eq(org_name.clone()))
-            .one(&self.db)
-            .await?;
+        let org = self.sql_get_org(&org_name).await?;
 
-        let org = match resp {
-            Some(org) => org,
-            None => {
-                return Err(DatabaseError::NotFound {
-                    error: NotFoundError::Organization { org: org_name },
-                })
-            }
-        };
-
-        Ok(DbOrganization::from(org))
+        Ok(DbOrganizationModel::from(org))
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn list_orgs(&self, pagination: PaginationOptions) -> DbResult<Vec<DbOrganization>> {
+    async fn list_orgs(&self, pagination: PaginationOptions) -> DbResult<Vec<DbOrganizationModel>> {
         use entity::organization::Column;
 
         let resp = Organization::find()
@@ -121,7 +100,26 @@ impl OrganizationQueries for PostresDatabase {
             .fetch_page(pagination.page_number)
             .await?;
 
-        Ok(resp.iter().map(DbOrganization::from).collect())
+        Ok(resp.iter().map(DbOrganizationModel::from).collect())
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    async fn sql_get_org(&self, org_name: &str) -> DbResult<entity::organization::Model> {
+        use entity::organization::Column;
+
+        let resp = Organization::find()
+        .filter(Column::OrgName.eq(org_name.clone()))
+        .one(&self.db)
+        .await?;
+
+        match resp {
+            Some(org) => Ok(org),
+            None => {
+                return Err(DatabaseError::NotFound {
+                    error: NotFoundError::Organization { org: org_name.to_owned() },
+                })
+            }
+        }
     }
 }
 

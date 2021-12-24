@@ -39,10 +39,8 @@ impl DefaultBackend {
     pub async fn delete_organization(
         &self,
         org_name: &str,
-    ) -> Result<(), BackendError> {
-        self.database.delete_org(org_name).await?;
-
-        Ok(())
+    ) -> Result<bool, BackendError> {
+        Ok(self.database.delete_org(org_name).await?)
     }
 
     pub async fn get_organizations(
@@ -67,13 +65,12 @@ impl DefaultBackend {
         repo_name: &str,
         repo_url: &Option<String>,
     ) -> Result<DataStoreRepository, BackendError> {
-        let org = self.database.find_org(org_name).await?;
-        let repo = self.database.create_repo(&org, repo_name).await?;
+        let repo = self.database.create_repo(org_name, repo_name).await?;
 
         if let Some(repo_url) = repo_url {
             self.database
                 .update_repo_metadata(
-                    &repo,
+                    org_name, repo_name,
                     UpdateRepoMetadata {
                         repo_url: Some(repo_url.to_string()),
                     },
@@ -85,8 +82,7 @@ impl DefaultBackend {
     }
 
     pub async fn get_repos(&self, org_name: &str, pagination: PaginationOptions) -> Result<DataStoreRepositoryList, BackendError> {
-        let org = self.database.find_org(org_name).await?;
-        let repos = self.database.list_repo(&org, pagination).await?;
+        let repos = self.database.list_repo(&org_name, pagination).await?;
         Ok(repos.into())
     }
 
@@ -95,8 +91,24 @@ impl DefaultBackend {
         org_name: &str,
         repo_name: &str,
     ) -> Result<DataStoreRepository, BackendError> {
-        let org = self.database.find_org(org_name).await?;
-        let repo = self.database.find_repo(&org, repo_name).await?;
+        let repo = self.database.get_repo(&org_name, repo_name).await?;
         Ok(repo.into())
+    }
+
+    pub async fn delete_repo(
+        &self,
+        org_name: &str,
+        repo_name: &str,
+    ) -> Result<bool, BackendError> {
+        Ok(self.database.delete_repo(org_name, repo_name).await?)
+    }
+
+    pub async fn get_repo_metadata(
+        &self,
+        org_name: &str,
+        repo_name: &str,
+    ) -> Result<DataStoreRepositoryMetadata, BackendError> {
+        let metadata = self.database.get_repo_metadata(org_name, repo_name).await?;
+        Ok(metadata.into())
     }
 }
