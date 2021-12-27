@@ -1,10 +1,13 @@
-use super::prelude::*;
 use crate::backend::models::PaginationOptions;
-use crate::database::entity::{self, prelude::*};
+use crate::database::{
+    entity::{self, prelude::*},
+    repo_queries::RepoQueries,
+    reversion_label_queries::RevisionLabelQueries,
+    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostresDatabase,
+};
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
-use std::collections::BTreeMap;
-use tracing::{debug, info};
+use tracing::info;
 use tracing_attributes::instrument;
 
 #[async_trait]
@@ -15,28 +18,13 @@ pub trait RevisionQueries {
         create_revision_param: &CreateRevisionParam<'_>,
     ) -> DbResult<DbRevisionModel>;
 
-    async fn set_revision_labels(
-        &self,
-        revision_param: &RevisionParam<'_>,
-        labels: BTreeMap<String, String>,
-    ) -> DbResult<()>;
-
-    async fn sql_set_revision_labels(
-        &self,
-        revision: &entity::repository_revision::Model,
-        labels: BTreeMap<String, String>,
-    ) -> DbResult<()>;
-
-    async fn get_revision_labels(
-        &self,
-        revision_param: &RevisionParam<'_>,
-    ) -> DbResult<RevisionLabels>;
-    async fn sql_get_revision_labels(
-        &self,
-        repo: &entity::repository_revision::Model,
-    ) -> DbResult<Vec<entity::repository_revision_label::Model>>;
-
     async fn get_revision(&self, revision_param: &RevisionParam<'_>) -> DbResult<DbRevisionModel>;
+
+    async fn sql_get_raw_revision(
+        &self,
+        revision_param: &RevisionParam<'_>,
+    ) -> DbResult<Option<entity::repository_revision::Model>>;
+
     async fn sql_get_revision(
         &self,
         revision_param: &RevisionParam<'_>,
@@ -54,13 +42,23 @@ pub trait RevisionQueries {
 
 pub mod models {
     use crate::database::entity::{self};
-    use std::collections::BTreeMap;
+    use crate::database::prelude::RevisionLabels;
 
     #[derive(Debug)]
     pub struct RevisionParam<'a> {
         pub org_name: &'a str,
         pub repo_name: &'a str,
         pub revision: &'a str,
+    }
+
+    impl<'a> RevisionParam<'a> {
+        pub fn new(org: &'a str, repo: &'a str, revision: &'a str) -> Self {
+            Self {
+                org_name: org,
+                repo_name: repo,
+                revision,
+            }
+        }
     }
 
     #[derive(Debug)]
@@ -95,36 +93,6 @@ pub mod models {
             }
         }
     }
-
-    #[derive(Debug, PartialEq, Eq)]
-    pub struct RevisionLabels {
-        pub labels: BTreeMap<String, String>,
-    }
-
-    impl From<&Vec<entity::repository_revision_label::Model>> for RevisionLabels {
-        fn from(source: &Vec<entity::repository_revision_label::Model>) -> Self {
-            let mut labels: BTreeMap<String, String> = Default::default();
-            for value in source.iter() {
-                labels.insert(value.label_name.to_string(), value.label_value.to_string());
-            }
-
-            Self { labels }
-        }
-    }
-
-    impl From<Vec<entity::repository_revision_label::Model>> for RevisionLabels {
-        fn from(source: Vec<entity::repository_revision_label::Model>) -> Self {
-            (&source).into()
-        }
-    }
-
-    impl Default for RevisionLabels {
-        fn default() -> Self {
-            Self {
-                labels: Default::default(),
-            }
-        }
-    }
 }
 
 use models::*;
@@ -140,6 +108,20 @@ impl RevisionQueries for PostresDatabase {
         let repo_name = revision_param.repo_name.to_string();
         let org_name = revision_param.org_name.to_string();
 
+        if let Some(found_revision) = self.sql_get_raw_revision(&revision_param).await? {
+            info!(
+                revision = tracing::field::debug(&found_revision),
+                "Found exiting revision for {:?}.", revision_param
+            );
+            return Err(DatabaseError::AlreadyExists {
+                error: AlreadyExistsError::Revision {
+                    org: revision_param.org_name.to_string(),
+                    repo: revision_param.repo_name.to_string(),
+                    revision: revision_param.revision.to_string(),
+                },
+            });
+        }
+
         let repo = self.sql_get_repo(&org_name, &repo_name).await?;
 
         let model = entity::repository_revision::ActiveModel {
@@ -152,8 +134,11 @@ impl RevisionQueries for PostresDatabase {
         };
 
         let response: InsertResult<_> = RepositoryRevision::insert(model).exec(&self.db).await?;
-        // if response.
-        debug!("result: {:?}", response);
+        self.sql_set_revision_labels(
+            response.last_insert_id,
+            &create_revision_param.labels.labels,
+        )
+        .await?;
 
         self.get_revision(&revision_param).await
     }
@@ -164,87 +149,6 @@ impl RevisionQueries for PostresDatabase {
         let labels = self.sql_get_revision_labels(&revision).await?;
 
         Ok(DbRevisionModel::from(revision, labels))
-    }
-
-    #[instrument(level = "debug", skip(self))]
-    async fn sql_get_revision_labels(
-        &self,
-        repo: &entity::repository_revision::Model,
-    ) -> DbResult<Vec<entity::repository_revision_label::Model>> {
-        let condition = Condition::all()
-            .add(entity::repository_revision::Column::RevisionId.eq(repo.revision_id));
-
-        Ok(RepositoryRevisionLabel::find()
-            .join(
-                JoinType::Join,
-                entity::repository_revision_label::Relation::RepositoryRevision.def(),
-            )
-            .filter(condition)
-            .all(&self.db)
-            .await?)
-    }
-
-    #[instrument(level = "debug", skip(self))]
-    async fn get_revision_labels(
-        &self,
-        revision_param: &RevisionParam<'_>,
-    ) -> DbResult<RevisionLabels> {
-        let revision = self.sql_get_revision(&revision_param).await?;
-        let labels = self.sql_get_revision_labels(&revision).await?;
-        Ok(labels.into())
-    }
-
-    #[instrument(level = "debug", skip(self))]
-    async fn sql_set_revision_labels(
-        &self,
-        revision: &entity::repository_revision::Model,
-        labels: BTreeMap<String, String>,
-    ) -> DbResult<()> {
-        let mut new_labels = Vec::default();
-
-        for (key, value) in labels {
-            new_labels.push(entity::repository_revision_label::ActiveModel {
-                revision_id: Set(revision.revision_id),
-                label_name: Set(key.to_string()),
-                label_value: Set(value.to_string()),
-                created_at: Set(self.date_time_provider.now().naive_utc()),
-                ..Default::default()
-            })
-        }
-
-        let new_label_count = new_labels.len();
-
-        let txn = self.db.begin().await?;
-
-        let del = RepositoryRevisionLabel::delete_many()
-            .filter(entity::repository_revision_label::Column::RevisionId.eq(revision.revision_id))
-            .exec(&txn)
-            .await?;
-        if !new_labels.is_empty() {
-            RepositoryRevisionLabel::insert_many(new_labels)
-                .exec(&txn)
-                .await?;
-        }
-
-        txn.commit().await?;
-
-        info!(
-            "Deleted {} rows, Inserted {} rows",
-            del.rows_affected, new_label_count
-        );
-        Ok(())
-    }
-
-    #[instrument(level = "debug", skip(self))]
-    async fn set_revision_labels(
-        &self,
-        revision_param: &RevisionParam<'_>,
-        labels: BTreeMap<String, String>,
-    ) -> DbResult<()> {
-        let revision = self.sql_get_revision(&revision_param).await?;
-
-        self.sql_set_revision_labels(&revision, labels).await?;
-        Ok(())
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -272,10 +176,10 @@ impl RevisionQueries for PostresDatabase {
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn sql_get_revision(
+    async fn sql_get_raw_revision(
         &self,
         revision_param: &RevisionParam<'_>,
-    ) -> DbResult<entity::repository_revision::Model> {
+    ) -> DbResult<Option<entity::repository_revision::Model>> {
         let condition = Condition::all()
             .add(entity::organization::Column::OrgName.eq(revision_param.org_name.clone()))
             .add(entity::repository::Column::RepoName.eq(revision_param.repo_name.clone()))
@@ -297,6 +201,16 @@ impl RevisionQueries for PostresDatabase {
             .one(&self.db)
             .await?;
 
+        Ok(revision)
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    async fn sql_get_revision(
+        &self,
+        revision_param: &RevisionParam<'_>,
+    ) -> DbResult<entity::repository_revision::Model> {
+        let revision = self.sql_get_raw_revision(&revision_param).await?;
+
         match revision {
             None => {
                 return Err(DatabaseError::NotFound {
@@ -315,7 +229,10 @@ impl RevisionQueries for PostresDatabase {
 #[cfg(test)]
 mod integ_test {
     use super::*;
-    use crate::database::{common_tests::*, DateTimeProvider};
+    use crate::database::{
+        common_tests::*, org_queries::*, reversion_label_queries::models::RevisionLabels,
+        DateTimeProvider,
+    };
     use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -326,16 +243,12 @@ mod integ_test {
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
-        db.create_org("foo".to_owned()).await.unwrap();
-        db.create_repo("foo", "bar").await.unwrap();
+        db.create_org("foo").await.unwrap();
+        create_repo(&db, "foo", "bar").await.unwrap();
 
         let revision = db
             .create_revision(
-                &RevisionParam {
-                    org_name: "foo",
-                    repo_name: "bar",
-                    revision: "1.2.3",
-                },
+                &RevisionParam::new("foo", "bar", "1.2.3"),
                 &CreateRevisionParam {
                     scm_id: "1",
                     artifact_url: None,
@@ -353,22 +266,18 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_duplicate_version() {
-        let _logging = logging_setup();
+        // let _logging = logging_setup();
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
-        db.create_org("foo".to_owned()).await.unwrap();
-        db.create_repo("foo", "bar").await.unwrap();
+        db.create_org("foo").await.unwrap();
+        create_repo(&db, "foo", "bar").await.unwrap();
 
         let revision = db
             .create_revision(
-                &RevisionParam {
-                    org_name: "foo",
-                    repo_name: "bar",
-                    revision: "1.2.3",
-                },
+                &RevisionParam::new("foo", "bar", "1.2.3"),
                 &CreateRevisionParam {
                     scm_id: "1",
                     artifact_url: None,
@@ -384,18 +293,18 @@ mod integ_test {
 
         let revision = db
             .create_revision(
-                &RevisionParam {
-                    org_name: "foo",
-                    repo_name: "bar",
-                    revision: "1.2.3",
-                },
+                &RevisionParam::new("foo", "bar", "1.2.3"),
                 &CreateRevisionParam {
                     scm_id: "1",
                     artifact_url: None,
                     labels: RevisionLabels::default(),
                 },
             )
-            .await
-            .unwrap();
+            .await;
+
+        assert!(revision.is_err());
+        let error = revision.unwrap_err();
+
+        assert_eq!(error.to_string(), "Revision foo/bar/1.2.3 exists");
     }
 }

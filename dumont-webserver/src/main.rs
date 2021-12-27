@@ -1,5 +1,3 @@
-#![feature(backtrace)]
-
 use crate::backend::DefaultBackend;
 use clap::{ArgGroup, Args, Parser, Subcommand};
 use std::sync::Arc;

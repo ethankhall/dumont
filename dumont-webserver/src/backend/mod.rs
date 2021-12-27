@@ -63,12 +63,15 @@ impl DefaultBackend {
         repo_name: &str,
         labels: BTreeMap<String, String>,
     ) -> Result<DataStoreRepository, BackendError> {
-        self.database.create_repo(org_name, repo_name).await?;
-        self.database
-            .set_repo_labels(org_name, repo_name, labels)
+        let repo = self
+            .database
+            .create_repo(
+                &RepoParam::new(org_name, repo_name),
+                CreateRepoParam {
+                    labels: labels.into(),
+                },
+            )
             .await?;
-
-        let repo = self.database.get_repo(&org_name, repo_name).await?;
 
         Ok(repo.into())
     }
@@ -87,12 +90,18 @@ impl DefaultBackend {
         org_name: &str,
         repo_name: &str,
     ) -> Result<DataStoreRepository, BackendError> {
-        let repo = self.database.get_repo(&org_name, repo_name).await?;
+        let repo = self
+            .database
+            .get_repo(&RepoParam::new(org_name, repo_name))
+            .await?;
         Ok(repo.into())
     }
 
     pub async fn delete_repo(&self, org_name: &str, repo_name: &str) -> Result<bool, BackendError> {
-        Ok(self.database.delete_repo(org_name, repo_name).await?)
+        Ok(self
+            .database
+            .delete_repo(&RepoParam::new(org_name, repo_name))
+            .await?)
     }
 
     pub async fn update_repo(
@@ -102,9 +111,12 @@ impl DefaultBackend {
         labels: BTreeMap<String, String>,
     ) -> Result<DataStoreRepository, BackendError> {
         self.database
-            .set_repo_labels(org_name, repo_name, labels)
+            .set_repo_labels(&RepoParam::new("foo", "bar"), labels)
             .await?;
-        let repo = self.database.get_repo(&org_name, repo_name).await?;
+        let repo = self
+            .database
+            .get_repo(&RepoParam::new(org_name, repo_name))
+            .await?;
         Ok(repo.into())
     }
 }

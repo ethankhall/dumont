@@ -1,5 +1,5 @@
 use super::prelude::*;
-pub use sea_orm::{DbBackend, entity::*, query::*, Database, DatabaseConnection};
+pub use sea_orm::{entity::*, query::*, Database, DatabaseConnection, DbBackend};
 use sqlx::postgres::PgPoolOptions;
 
 pub async fn setup_schema() -> DbResult<DatabaseConnection> {
@@ -48,4 +48,25 @@ pub fn logging_setup() -> () {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     tracing_log::LogTracer::init().expect("logging to work correctly")
+}
+
+pub async fn create_repo(db: &PostresDatabase, org: &str, repo: &str) -> DbResult<()> {
+    create_repo_with_params(db, org, repo, CreateRepoParam::default())
+        .await
+        .unwrap();
+
+    Ok(())
+}
+
+pub async fn create_repo_with_params(
+    db: &PostresDatabase,
+    org: &str,
+    repo: &str,
+    create_param: CreateRepoParam,
+) -> DbResult<()> {
+    db.create_repo(&RepoParam::new(org, repo), create_param)
+        .await
+        .unwrap();
+
+    Ok(())
 }

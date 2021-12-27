@@ -1,6 +1,8 @@
-use super::prelude::*;
 use crate::backend::models::PaginationOptions;
-use crate::database::entity::{self, prelude::*};
+use crate::database::{
+    entity::{self, prelude::*},
+    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostresDatabase,
+};
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
 use tracing_attributes::instrument;
@@ -48,35 +50,26 @@ pub use models::*;
 
 #[async_trait]
 pub trait OrganizationQueries {
-    async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganizationModel>
-    where
-        T: ToString + Send;
+    async fn create_org(&self, org_name: &str) -> DbResult<DbOrganizationModel>;
+    async fn sql_get_raw_org(
+        &self,
+        org_name: &str,
+    ) -> DbResult<Option<entity::organization::Model>>;
     async fn sql_get_org(&self, org_name: &str) -> DbResult<entity::organization::Model>;
-    async fn find_org<T>(&self, org_name: T) -> DbResult<DbOrganizationModel>
-    where
-        T: ToString + Send;
+    async fn find_org(&self, org_name: &str) -> DbResult<DbOrganizationModel>;
     async fn list_orgs(&self, pagination: PaginationOptions) -> DbResult<Vec<DbOrganizationModel>>;
-    async fn delete_org<T>(&self, org_name: T) -> DbResult<bool>
-    where
-        T: ToString + Send;
+    async fn delete_org(&self, org_name: &str) -> DbResult<bool>;
 }
 
 #[async_trait]
 impl OrganizationQueries for PostresDatabase {
-    #[instrument(level = "debug", fields(org_name = %org_name.to_string()), skip(self, org_name))]
-    async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganizationModel>
-    where
-        T: ToString + Send,
-    {
-        use entity::organization::{ActiveModel, Column};
+    #[instrument(level = "debug", skip(self))]
+    async fn create_org(&self, org_name: &str) -> DbResult<DbOrganizationModel> {
+        use entity::organization::ActiveModel;
 
         let org_name = org_name.to_string();
 
-        let resp = Organization::find()
-            .filter(Column::OrgName.eq(org_name.clone()))
-            .count(&self.db)
-            .await?;
-        if resp != 0 {
+        if let Some(_org) = self.sql_get_raw_org(&org_name).await? {
             return Err(DatabaseError::AlreadyExists {
                 error: AlreadyExistsError::Organization {
                     org: org_name.clone(),
@@ -97,11 +90,8 @@ impl OrganizationQueries for PostresDatabase {
         Ok(DbOrganizationModel::from(model))
     }
 
-    #[instrument(level = "debug", fields(org_name = %org_name.to_string()), skip(self, org_name))]
-    async fn delete_org<T>(&self, org_name: T) -> DbResult<bool>
-    where
-        T: ToString + Send,
-    {
+    #[instrument(level = "debug", skip(self))]
+    async fn delete_org(&self, org_name: &str) -> DbResult<bool> {
         use entity::organization::Column;
         let org_name = org_name.to_string();
 
@@ -119,11 +109,8 @@ impl OrganizationQueries for PostresDatabase {
         Ok(true)
     }
 
-    #[instrument(level = "debug", fields(org_name = %org_name.to_string()), skip(self, org_name))]
-    async fn find_org<T>(&self, org_name: T) -> DbResult<DbOrganizationModel>
-    where
-        T: ToString + Send,
-    {
+    #[instrument(level = "debug", skip(self))]
+    async fn find_org(&self, org_name: &str) -> DbResult<DbOrganizationModel> {
         let org_name = org_name.to_string();
 
         let org = self.sql_get_org(&org_name).await?;
@@ -145,7 +132,10 @@ impl OrganizationQueries for PostresDatabase {
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn sql_get_org(&self, org_name: &str) -> DbResult<entity::organization::Model> {
+    async fn sql_get_raw_org(
+        &self,
+        org_name: &str,
+    ) -> DbResult<Option<entity::organization::Model>> {
         use entity::organization::Column;
 
         let resp = Organization::find()
@@ -153,7 +143,12 @@ impl OrganizationQueries for PostresDatabase {
             .one(&self.db)
             .await?;
 
-        match resp {
+        Ok(resp)
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    async fn sql_get_org(&self, org_name: &str) -> DbResult<entity::organization::Model> {
+        match self.sql_get_raw_org(org_name).await? {
             Some(org) => Ok(org),
             None => {
                 return Err(DatabaseError::NotFound {
@@ -180,20 +175,20 @@ mod integ_test {
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
-        let new_org = db.create_org("foo".to_owned()).await.unwrap();
+        let new_org = db.create_org("foo").await.unwrap();
         assert_eq!(new_org.org_name, "foo");
 
-        let found_org = db.find_org("foo".to_owned()).await.unwrap();
+        let found_org = db.find_org("foo").await.unwrap();
         assert_eq!(found_org.org_name, "foo");
 
-        match db.find_org("food".to_owned()).await {
+        match db.find_org("food").await {
             Err(DatabaseError::NotFound {
                 error: NotFoundError::Organization { org },
             }) => assert_eq!(org, "food".to_owned()),
             failed => unreachable!("Should not have gotten {:?}", failed),
         }
 
-        match db.create_org("foo".to_owned()).await {
+        match db.create_org("foo").await {
             Err(DatabaseError::AlreadyExists {
                 error: AlreadyExistsError::Organization { org },
             }) => {
@@ -202,7 +197,7 @@ mod integ_test {
             failed => unreachable!("Should not have gotten {:?}", failed),
         }
 
-        let new_org = db.create_org("bar".to_owned()).await.unwrap();
+        let new_org = db.create_org("bar").await.unwrap();
         assert_eq!(new_org.org_name, "bar");
 
         let listed_orgs = db.list_orgs(PaginationOptions::new(0, 50)).await.unwrap();
@@ -229,7 +224,7 @@ mod integ_test {
         };
 
         for i in 0..100 {
-            db.create_org(format!("org-{}", i)).await.unwrap();
+            db.create_org(&format!("org-{}", i)).await.unwrap();
         }
 
         let found_orgs = db.list_orgs(PaginationOptions::new(0, 50)).await.unwrap();
