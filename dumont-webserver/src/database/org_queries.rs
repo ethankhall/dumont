@@ -5,6 +5,47 @@ use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
 use tracing_attributes::instrument;
 
+pub trait DbOrganization {
+    fn get_org_id(&self) -> i32;
+    fn get_org_name(&self) -> String;
+}
+
+pub mod models {
+    use crate::database::entity;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct DbOrganizationModel {
+        pub org_id: i32,
+        pub org_name: String,
+    }
+
+    impl super::DbOrganization for DbOrganizationModel {
+        fn get_org_id(&self) -> i32 {
+            self.org_id
+        }
+        fn get_org_name(&self) -> String {
+            self.org_name.clone()
+        }
+    }
+
+    impl From<&entity::organization::Model> for DbOrganizationModel {
+        fn from(org: &entity::organization::Model) -> Self {
+            Self {
+                org_id: org.org_id,
+                org_name: org.org_name.clone(),
+            }
+        }
+    }
+
+    impl From<entity::organization::Model> for DbOrganizationModel {
+        fn from(org: entity::organization::Model) -> Self {
+            (&org).into()
+        }
+    }
+}
+
+pub use models::*;
+
 #[async_trait]
 pub trait OrganizationQueries {
     async fn create_org<T>(&self, org_name: T) -> DbResult<DbOrganizationModel>
@@ -128,12 +169,13 @@ impl OrganizationQueries for PostresDatabase {
 #[cfg(test)]
 mod integ_test {
     use super::*;
-    use crate::database::common_tests::*;
+    use crate::database::{DateTimeProvider, common_tests::*};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_orgs() {
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
+            date_time_provider: DateTimeProvider::RealDateTime
         };
 
         let new_org = db.create_org("foo".to_owned()).await.unwrap();
@@ -180,6 +222,7 @@ mod integ_test {
     async fn test_org_pagination() {
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
+            date_time_provider: DateTimeProvider::RealDateTime
         };
 
         for i in 0..100 {

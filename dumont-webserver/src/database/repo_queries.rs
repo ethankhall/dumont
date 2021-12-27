@@ -8,6 +8,99 @@ use std::collections::BTreeMap;
 use tracing::info;
 use tracing_attributes::instrument;
 
+
+pub trait DbRepo {
+    fn get_repo_id(&self) -> i32;
+    fn get_repo_name(&self) -> String;
+}
+
+pub mod models {
+    use std::collections::BTreeMap;
+    use crate::database::entity;
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct DbRepoModel {
+        pub org_id: i32,
+        pub org_name: String,
+        pub repo_id: i32,
+        pub repo_name: String,
+        pub labels: RepoLabels,
+    }
+
+    impl DbRepoModel {
+        pub fn from(
+            org: &entity::organization::Model,
+            repo: &entity::repository::Model,
+            labels: &Vec<entity::repository_label::Model>,
+        ) -> Self {
+            Self {
+                org_id: org.org_id,
+                org_name: org.org_name.clone(),
+                repo_id: repo.repo_id,
+                repo_name: repo.repo_name.clone(),
+                labels: labels.into(),
+            }
+        }
+    }
+
+    impl super::DbRepo for DbRepoModel {
+        fn get_repo_id(&self) -> i32 {
+            self.repo_id
+        }
+    
+        fn get_repo_name(&self) -> String {
+            self.repo_name.clone()
+        }
+    }    
+
+    impl super::DbOrganization for DbRepoModel {
+        fn get_org_id(&self) -> i32 {
+            self.org_id
+        }
+        fn get_org_name(&self) -> String {
+            self.org_name.clone()
+        }
+    }
+
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct RepoLabels {
+        pub labels: BTreeMap<String, String>,
+    }
+
+    impl From<&Vec<entity::repository_label::Model>> for RepoLabels {
+        fn from(source: &Vec<entity::repository_label::Model>) -> Self {
+            let mut labels: BTreeMap<String, String> = Default::default();
+            for value in source.iter() {
+                labels.insert(value.label_name.to_string(), value.label_value.to_string());
+            }
+
+            Self { labels }
+        }
+    }
+
+    impl From<Vec<entity::repository_label::Model>> for RepoLabels {
+        fn from(source: Vec<entity::repository_label::Model>) -> Self {
+            (&source).into()
+        }
+    }
+
+    impl Default for RepoLabels {
+        fn default() -> Self {
+            Self {
+                labels: Default::default(),
+            }
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct UpdateRepoMetadata {
+        pub labels: BTreeMap<String, String>,
+    }
+}
+
+pub use models::*;
+
 #[async_trait]
 pub trait RepoQueries {
     async fn create_repo(&self, org_name: &str, repo_name: &str) -> DbResult<DbRepoModel>;
@@ -70,6 +163,7 @@ impl RepoQueries for PostresDatabase {
         let model = repository::ActiveModel {
             org_id: Set(org.org_id),
             repo_name: Set(repo_name),
+            created_at: Set(self.date_time_provider.now().naive_utc()),
             ..Default::default()
         };
 
@@ -106,6 +200,7 @@ impl RepoQueries for PostresDatabase {
                 repo_id: Set(repo.repo_id),
                 label_name: Set(key.to_string()),
                 label_value: Set(value.to_string()),
+                created_at: Set(self.date_time_provider.now().naive_utc()),
                 ..Default::default()
             })
         }
@@ -247,12 +342,13 @@ impl RepoQueries for PostresDatabase {
 #[cfg(test)]
 mod integ_test {
     use super::*;
-    use crate::database::common_tests::*;
+    use crate::database::{DateTimeProvider, common_tests::*};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_repos() {
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
+            date_time_provider: DateTimeProvider::RealDateTime,
         };
 
         db.create_org("foo".to_owned()).await.unwrap();
@@ -264,15 +360,15 @@ mod integ_test {
         let metadata = db.get_repo_labels("foo", "bar").await.unwrap();
         assert_eq!(metadata.labels.len(), 0);
 
-        let labels = BTreeMap::new();
+        let mut labels = BTreeMap::new();
         labels.insert("scm_url".to_owned(), "https://google.com".to_owned());
 
-        let metadata = db.set_repo_labels("foo", "bar", labels).await.unwrap();
+        db.set_repo_labels("foo", "bar", labels).await.unwrap();
 
         let labels = db.get_repo_labels("foo", "bar").await.unwrap();
         assert_eq!(
             labels.labels.get("scm_url"),
-            Some("https://google.com".to_owned())
+            Some(&"https://google.com".to_owned())
         );
 
         let repo = db.get_repo_by_id(repo.repo_id).await.unwrap();
@@ -316,6 +412,7 @@ mod integ_test {
     async fn test_repo_pagination() {
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
+            date_time_provider: DateTimeProvider::RealDateTime,
         };
 
         db.create_org("foo".to_owned()).await.unwrap();
@@ -352,6 +449,7 @@ mod integ_test {
     async fn test_delete_repo() {
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
+            date_time_provider: DateTimeProvider::RealDateTime,
         };
 
         db.create_org("foo".to_owned()).await.unwrap();

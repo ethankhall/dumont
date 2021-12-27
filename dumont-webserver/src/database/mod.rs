@@ -1,10 +1,10 @@
 // Generated with `sea-orm-cli generate entity -s public -o src/database/entity`
 mod entity;
-mod models;
 
 mod common_tests;
 mod org_queries;
 mod repo_queries;
+mod reversion_queries;
 
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use thiserror::Error;
@@ -15,6 +15,8 @@ pub enum NotFoundError {
     Organization { org: String },
     #[error("{org}/{repo} not found")]
     Repo { org: String, repo: String },
+    #[error("{org}/{repo}/{revision} not found")]
+    Revision { org: String, repo: String, revision: String },
     #[error("Repo with id {repo_id} not found")]
     RepoById { repo_id: i32 },
 }
@@ -25,6 +27,8 @@ pub enum AlreadyExistsError {
     Organization { org: String },
     #[error("{org}/{repo} exists")]
     Repo { org: String, repo: String },
+    #[error("{org}/{repo}/{revision} exists")]
+    Revision { org: String, repo: String, revision: String },
 }
 
 #[derive(Error, Debug)]
@@ -33,29 +37,42 @@ pub enum DatabaseError {
     NotFound { error: NotFoundError },
     #[error(transparent)]
     AlreadyExists { error: AlreadyExistsError },
-    #[error(transparent)]
+    #[error("Error withing backend: {source}")]
     BackendError {
         #[from]
         source: anyhow::Error,
+        backtrace: std::backtrace::Backtrace,
     },
-    #[error(transparent)]
+    #[error("Error when accessing database: {source}")]
     SeaOrmError {
         #[from]
         source: sea_orm::DbErr,
+        backtrace: std::backtrace::Backtrace,
     },
+}
+
+pub enum DateTimeProvider {
+    RealDateTime,
+}
+
+impl DateTimeProvider {
+    pub fn now(&self) -> chrono::DateTime<chrono::Utc> {
+        chrono::Utc::now()
+    }
 }
 
 pub struct PostresDatabase {
     db: DatabaseConnection,
+    date_time_provider: DateTimeProvider
 }
 
 impl PostresDatabase {
     pub async fn new<S: Into<String>>(connection_url: S) -> prelude::DbResult<Self> {
         let mut opts: ConnectOptions = ConnectOptions::new(connection_url.into());
-        opts.sqlx_logging(cfg!(debug_assertions));
+        opts.sqlx_logging(cfg!(debug_assertions) || cfg!(test_assertions));
         let db: DatabaseConnection = Database::connect(opts).await?;
 
-        Ok(Self { db })
+        Ok(Self { db, date_time_provider: DateTimeProvider::RealDateTime })
     }
 }
 
@@ -63,8 +80,7 @@ pub mod prelude {
     pub use super::entity::prelude::*;
     pub use thiserror::Error;
     pub type DbResult<T> = Result<T, DatabaseError>;
-    pub use super::models::*;
-    pub use super::org_queries::OrganizationQueries;
-    pub use super::repo_queries::RepoQueries;
+    pub use super::org_queries::{DbOrganization, OrganizationQueries, models::*};
+    pub use super::repo_queries::{DbRepo, RepoQueries, models::*};
     pub use super::{AlreadyExistsError, DatabaseError, NotFoundError, PostresDatabase};
 }

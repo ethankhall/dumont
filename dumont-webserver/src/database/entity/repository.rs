@@ -10,6 +10,7 @@ pub struct Model {
     pub org_id: i32,
     #[sea_orm(column_type = "Text")]
     pub repo_name: String,
+    pub created_at: DateTime,
     #[sea_orm(column_type = "Text", nullable)]
     pub url: Option<String>,
 }

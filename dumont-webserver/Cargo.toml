@@ -13,6 +13,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 async-trait = "0.1.42"
 clap = { version = "3.0.0-rc.8", features = ["derive", "env"] }
+chrono = "0.4"
 dotenv = "0.15.0"
 thiserror = "1.0"
 anyhow = "1.0"
@@ -32,6 +33,12 @@ strum_macros = "0.21"
 strum = "0.21"
 refinery = { version = "0.7", features = ["postgres"]}
 atty = "0.2"
+human-panic = "1.0.3"
+
 
 [dev-dependencies]
 sea-orm = { version = "0.4", features = [ "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls", "macros" ] }
+test-log = { version = "0.2.8", features = ["trace"] }
+env_logger = "*"
+tracing = {version = "0.1", default-features = false}
+tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}

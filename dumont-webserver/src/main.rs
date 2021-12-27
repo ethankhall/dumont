@@ -1,3 +1,5 @@
+#![feature(backtrace)]
+
 use crate::backend::DefaultBackend;
 use clap::{ArgGroup, Args, Parser, Subcommand};
 use std::sync::Arc;
@@ -98,6 +100,7 @@ impl From<LoggingOpts> for LevelFilter {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    human_panic::setup_panic!();
     dotenv::dotenv().ok();
 
     let opt = Opts::parse();

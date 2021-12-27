@@ -7,6 +7,7 @@ CREATE TABLE repository(
     repo_id SERIAL PRIMARY KEY NOT NULL,
     org_id INTEGER NOT NULL REFERENCES organization(org_id),
     repo_name TEXT NOT NULL,
+    created_at timestamp NOT NULL DEFAULT now(),
     url TEXT,
     UNIQUE(org_id, repo_name)
 );
