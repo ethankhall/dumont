@@ -1,37 +1,33 @@
-#[cfg(test)]
 use super::prelude::*;
-#[cfg(test)]
-pub use sea_orm::{entity::*, query::*, Database, DatabaseConnection};
+pub use sea_orm::{DbBackend, entity::*, query::*, Database, DatabaseConnection};
+use sqlx::postgres::PgPoolOptions;
 
-#[cfg(test)]
 pub async fn setup_schema() -> DbResult<DatabaseConnection> {
-    use super::entity::prelude::*;
-    use sea_orm::schema::Schema;
-
-    let db = Database::connect("sqlite::memory:").await?;
-    let db_backed = db.get_database_backend();
-    let schema = Schema::new(db_backed);
-
-    db.execute(db_backed.build(&schema.create_table_from_entity(Organization)))
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect("postgresql://postgres:password@127.0.0.1:5432/")
         .await?;
 
-    db.execute(db_backed.build(&schema.create_table_from_entity(Repository)))
+    let mut conn = pool.acquire().await?;
+
+    sqlx::query!("DROP DATABASE IF EXISTS postgres_test")
+        .execute(&mut conn)
         .await?;
 
-    db.execute(db_backed.build(&schema.create_table_from_entity(RepositoryLabel)))
+    sqlx::query!("CREATE DATABASE postgres_test")
+        .execute(&mut conn)
         .await?;
 
-    db.execute(db_backed.build(&schema.create_table_from_entity(RepositoryRevision)))
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect("postgresql://postgres:password@127.0.0.1:5432/postgres_test")
         .await?;
 
-    db.execute(db_backed.build(&schema.create_table_from_entity(RepositoryRevisionLabel)))
-        .await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
 
-    Ok(db)
+    Ok(Database::connect("postgresql://postgres:password@127.0.0.1:5432/postgres_test").await?)
 }
 
-
-#[cfg(test)]
 #[allow(dead_code)]
 pub fn logging_setup() -> () {
     use tracing::level_filters::LevelFilter;

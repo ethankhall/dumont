@@ -1,6 +1,7 @@
 // Generated with `sea-orm-cli generate entity -s public -o src/database/entity`
 mod entity;
 
+#[cfg(test)]
 mod common_tests;
 mod org_queries;
 mod repo_queries;
@@ -16,7 +17,11 @@ pub enum NotFoundError {
     #[error("{org}/{repo} not found")]
     Repo { org: String, repo: String },
     #[error("{org}/{repo}/{revision} not found")]
-    Revision { org: String, repo: String, revision: String },
+    Revision {
+        org: String,
+        repo: String,
+        revision: String,
+    },
     #[error("Repo with id {repo_id} not found")]
     RepoById { repo_id: i32 },
 }
@@ -28,7 +33,11 @@ pub enum AlreadyExistsError {
     #[error("{org}/{repo} exists")]
     Repo { org: String, repo: String },
     #[error("{org}/{repo}/{revision} exists")]
-    Revision { org: String, repo: String, revision: String },
+    Revision {
+        org: String,
+        repo: String,
+        revision: String,
+    },
 }
 
 #[derive(Error, Debug)]
@@ -49,6 +58,18 @@ pub enum DatabaseError {
         source: sea_orm::DbErr,
         backtrace: std::backtrace::Backtrace,
     },
+    #[error("Error when accessing database: {source}")]
+    SqlxError {
+        #[from]
+        source: sqlx::Error,
+        backtrace: std::backtrace::Backtrace,
+    },
+    #[error("Error when running database migration: {source}")]
+    MigrateError {
+        #[from]
+        source: sqlx::migrate::MigrateError,
+        backtrace: std::backtrace::Backtrace,
+    },
 }
 
 pub enum DateTimeProvider {
@@ -63,7 +84,7 @@ impl DateTimeProvider {
 
 pub struct PostresDatabase {
     db: DatabaseConnection,
-    date_time_provider: DateTimeProvider
+    date_time_provider: DateTimeProvider,
 }
 
 impl PostresDatabase {
@@ -72,7 +93,10 @@ impl PostresDatabase {
         opts.sqlx_logging(cfg!(debug_assertions) || cfg!(test_assertions));
         let db: DatabaseConnection = Database::connect(opts).await?;
 
-        Ok(Self { db, date_time_provider: DateTimeProvider::RealDateTime })
+        Ok(Self {
+            db,
+            date_time_provider: DateTimeProvider::RealDateTime,
+        })
     }
 }
 
@@ -80,7 +104,7 @@ pub mod prelude {
     pub use super::entity::prelude::*;
     pub use thiserror::Error;
     pub type DbResult<T> = Result<T, DatabaseError>;
-    pub use super::org_queries::{DbOrganization, OrganizationQueries, models::*};
-    pub use super::repo_queries::{DbRepo, RepoQueries, models::*};
+    pub use super::org_queries::{models::*, DbOrganization, OrganizationQueries};
+    pub use super::repo_queries::{models::*, DbRepo, RepoQueries};
     pub use super::{AlreadyExistsError, DatabaseError, NotFoundError, PostresDatabase};
 }

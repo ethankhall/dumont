@@ -8,15 +8,14 @@ use std::collections::BTreeMap;
 use tracing::info;
 use tracing_attributes::instrument;
 
-
 pub trait DbRepo {
     fn get_repo_id(&self) -> i32;
     fn get_repo_name(&self) -> String;
 }
 
 pub mod models {
-    use std::collections::BTreeMap;
     use crate::database::entity;
+    use std::collections::BTreeMap;
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct DbRepoModel {
@@ -47,11 +46,11 @@ pub mod models {
         fn get_repo_id(&self) -> i32 {
             self.repo_id
         }
-    
+
         fn get_repo_name(&self) -> String {
             self.repo_name.clone()
         }
-    }    
+    }
 
     impl super::DbOrganization for DbRepoModel {
         fn get_org_id(&self) -> i32 {
@@ -61,7 +60,6 @@ pub mod models {
             self.org_name.clone()
         }
     }
-
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct RepoLabels {
@@ -342,9 +340,11 @@ impl RepoQueries for PostresDatabase {
 #[cfg(test)]
 mod integ_test {
     use super::*;
-    use crate::database::{DateTimeProvider, common_tests::*};
+    use crate::database::{common_tests::*, DateTimeProvider};
+    use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[serial]
     async fn test_repos() {
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
@@ -409,6 +409,7 @@ mod integ_test {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[serial]
     async fn test_repo_pagination() {
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
@@ -446,6 +447,7 @@ mod integ_test {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[serial]
     async fn test_delete_repo() {
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),

@@ -169,13 +169,15 @@ impl OrganizationQueries for PostresDatabase {
 #[cfg(test)]
 mod integ_test {
     use super::*;
-    use crate::database::{DateTimeProvider, common_tests::*};
+    use crate::database::{common_tests::*, DateTimeProvider};
+    use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[serial]
     async fn test_orgs() {
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
-            date_time_provider: DateTimeProvider::RealDateTime
+            date_time_provider: DateTimeProvider::RealDateTime,
         };
 
         let new_org = db.create_org("foo".to_owned()).await.unwrap();
@@ -219,10 +221,11 @@ mod integ_test {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[serial]
     async fn test_org_pagination() {
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
-            date_time_provider: DateTimeProvider::RealDateTime
+            date_time_provider: DateTimeProvider::RealDateTime,
         };
 
         for i in 0..100 {

@@ -34,11 +34,8 @@ strum = "0.21"
 refinery = { version = "0.7", features = ["postgres"]}
 atty = "0.2"
 human-panic = "1.0.3"
-
+sqlx = { version = "0.5", features = [ "postgres", "migrate" ] }
 
 [dev-dependencies]
 sea-orm = { version = "0.4", features = [ "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls", "macros" ] }
-test-log = { version = "0.2.8", features = ["trace"] }
-env_logger = "*"
-tracing = {version = "0.1", default-features = false}
-tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}
+serial_test = "0.5.1"

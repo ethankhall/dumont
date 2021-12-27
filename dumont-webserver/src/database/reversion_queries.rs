@@ -4,13 +4,16 @@ use crate::database::entity::{self, prelude::*};
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
 use std::collections::BTreeMap;
-use tracing::info;
+use tracing::{debug, info};
 use tracing_attributes::instrument;
-
 
 #[async_trait]
 pub trait RevisionQueries {
-    async fn create_revision(&self, revision_param: &RevisionParam<'_>, create_revision_param: &CreateRevisionParam<'_>) -> DbResult<DbRevisionModel>;
+    async fn create_revision(
+        &self,
+        revision_param: &RevisionParam<'_>,
+        create_revision_param: &CreateRevisionParam<'_>,
+    ) -> DbResult<DbRevisionModel>;
 
     async fn set_revision_labels(
         &self,
@@ -24,7 +27,10 @@ pub trait RevisionQueries {
         labels: BTreeMap<String, String>,
     ) -> DbResult<()>;
 
-    async fn get_revision_labels(&self, revision_param: &RevisionParam<'_>) -> DbResult<RevisionLabels>;
+    async fn get_revision_labels(
+        &self,
+        revision_param: &RevisionParam<'_>,
+    ) -> DbResult<RevisionLabels>;
     async fn sql_get_revision_labels(
         &self,
         repo: &entity::repository_revision::Model,
@@ -38,7 +44,8 @@ pub trait RevisionQueries {
 
     async fn list_revision(
         &self,
-        org_name: &str, repo_name: &str,
+        org_name: &str,
+        repo_name: &str,
         pagination: PaginationOptions,
     ) -> DbResult<Vec<DbRevisionModel>>;
 
@@ -46,14 +53,14 @@ pub trait RevisionQueries {
 }
 
 pub mod models {
-    use std::collections::BTreeMap;
     use crate::database::entity::{self};
+    use std::collections::BTreeMap;
 
     #[derive(Debug)]
     pub struct RevisionParam<'a> {
         pub org_name: &'a str,
         pub repo_name: &'a str,
-        pub revision: &'a str
+        pub revision: &'a str,
     }
 
     #[derive(Debug)]
@@ -74,14 +81,17 @@ pub mod models {
     }
 
     impl DbRevisionModel {
-        pub fn from(revision: entity::repository_revision::Model, labels: Vec<entity::repository_revision_label::Model>) -> Self {
+        pub fn from(
+            revision: entity::repository_revision::Model,
+            labels: Vec<entity::repository_revision_label::Model>,
+        ) -> Self {
             Self {
                 repo_id: revision.repo_id,
                 revision_id: revision.revision_id,
                 revision_name: revision.revision_name,
                 scm_id: revision.scm_id,
                 artifact_url: revision.artifact_url,
-                labels: RevisionLabels::from(&labels)
+                labels: RevisionLabels::from(&labels),
             }
         }
     }
@@ -111,7 +121,7 @@ pub mod models {
     impl Default for RevisionLabels {
         fn default() -> Self {
             Self {
-                labels: Default::default()
+                labels: Default::default(),
             }
         }
     }
@@ -122,7 +132,11 @@ use models::*;
 #[async_trait]
 impl RevisionQueries for PostresDatabase {
     #[instrument(level = "debug", skip(self))]
-    async fn create_revision(&self, revision_param: &RevisionParam<'_>, create_revision_param: &CreateRevisionParam<'_>) -> DbResult<DbRevisionModel> {
+    async fn create_revision(
+        &self,
+        revision_param: &RevisionParam<'_>,
+        create_revision_param: &CreateRevisionParam<'_>,
+    ) -> DbResult<DbRevisionModel> {
         let repo_name = revision_param.repo_name.to_string();
         let org_name = revision_param.org_name.to_string();
 
@@ -137,7 +151,9 @@ impl RevisionQueries for PostresDatabase {
             ..Default::default()
         };
 
-        RepositoryRevision::insert(model).exec(&self.db).await?;
+        let response: InsertResult<_> = RepositoryRevision::insert(model).exec(&self.db).await?;
+        // if response.
+        debug!("result: {:?}", response);
 
         self.get_revision(&revision_param).await
     }
@@ -155,19 +171,24 @@ impl RevisionQueries for PostresDatabase {
         &self,
         repo: &entity::repository_revision::Model,
     ) -> DbResult<Vec<entity::repository_revision_label::Model>> {
-
         let condition = Condition::all()
             .add(entity::repository_revision::Column::RevisionId.eq(repo.revision_id));
 
         Ok(RepositoryRevisionLabel::find()
-            .join(JoinType::Join, entity::repository_revision_label::Relation::RepositoryRevision.def())
+            .join(
+                JoinType::Join,
+                entity::repository_revision_label::Relation::RepositoryRevision.def(),
+            )
             .filter(condition)
             .all(&self.db)
             .await?)
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn get_revision_labels(&self, revision_param: &RevisionParam<'_>) -> DbResult<RevisionLabels> {
+    async fn get_revision_labels(
+        &self,
+        revision_param: &RevisionParam<'_>,
+    ) -> DbResult<RevisionLabels> {
         let revision = self.sql_get_revision(&revision_param).await?;
         let labels = self.sql_get_revision_labels(&revision).await?;
         Ok(labels.into())
@@ -200,7 +221,9 @@ impl RevisionQueries for PostresDatabase {
             .exec(&txn)
             .await?;
         if !new_labels.is_empty() {
-            RepositoryRevisionLabel::insert_many(new_labels).exec(&txn).await?;
+            RepositoryRevisionLabel::insert_many(new_labels)
+                .exec(&txn)
+                .await?;
         }
 
         txn.commit().await?;
@@ -218,7 +241,6 @@ impl RevisionQueries for PostresDatabase {
         revision_param: &RevisionParam<'_>,
         labels: BTreeMap<String, String>,
     ) -> DbResult<()> {
-
         let revision = self.sql_get_revision(&revision_param).await?;
 
         self.sql_set_revision_labels(&revision, labels).await?;
@@ -228,10 +250,10 @@ impl RevisionQueries for PostresDatabase {
     #[instrument(level = "debug", skip(self))]
     async fn list_revision(
         &self,
-        org_name: &str, repo_name: &str,
+        org_name: &str,
+        repo_name: &str,
         pagination: PaginationOptions,
     ) -> DbResult<Vec<DbRevisionModel>> {
-        
         let repo = self.sql_get_repo(org_name, repo_name).await?;
         let select = repo
             .find_related(RepositoryRevision)
@@ -257,15 +279,24 @@ impl RevisionQueries for PostresDatabase {
         let condition = Condition::all()
             .add(entity::organization::Column::OrgName.eq(revision_param.org_name.clone()))
             .add(entity::repository::Column::RepoName.eq(revision_param.repo_name.clone()))
-            .add(entity::repository_revision::Column::RevisionName.eq(revision_param.revision.clone()));
-        
+            .add(
+                entity::repository_revision::Column::RevisionName
+                    .eq(revision_param.revision.clone()),
+            );
+
         let revision = RepositoryRevision::find()
             .filter(condition)
-            .join(JoinType::Join, entity::repository_revision::Relation::Repository.def())
-            .join(JoinType::Join, entity::repository::Relation::Organization.def())
+            .join(
+                JoinType::Join,
+                entity::repository_revision::Relation::Repository.def(),
+            )
+            .join(
+                JoinType::Join,
+                entity::repository::Relation::Organization.def(),
+            )
             .one(&self.db)
             .await?;
-            
+
         match revision {
             None => {
                 return Err(DatabaseError::NotFound {
@@ -284,35 +315,87 @@ impl RevisionQueries for PostresDatabase {
 #[cfg(test)]
 mod integ_test {
     use super::*;
-    use crate::database::{DateTimeProvider, common_tests::*};
+    use crate::database::{common_tests::*, DateTimeProvider};
+    use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[serial]
     async fn test_revison_create() {
-        // let _logger = logging_setup();
         let db = PostresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
-      
         db.create_org("foo".to_owned()).await.unwrap();
         db.create_repo("foo", "bar").await.unwrap();
-        
-        let revision = db.create_revision(
-            &RevisionParam {
-                org_name: "foo",
-                repo_name: "bar",
-                revision: "1.2.3"
-            },
-            &CreateRevisionParam {
-                scm_id: "1",
-                artifact_url: None,
-                labels: RevisionLabels::default(),
-            }
-        ).await.unwrap();
+
+        let revision = db
+            .create_revision(
+                &RevisionParam {
+                    org_name: "foo",
+                    repo_name: "bar",
+                    revision: "1.2.3",
+                },
+                &CreateRevisionParam {
+                    scm_id: "1",
+                    artifact_url: None,
+                    labels: RevisionLabels::default(),
+                },
+            )
+            .await
+            .unwrap();
 
         assert_eq!(revision.revision_name, "1.2.3");
         assert_eq!(revision.scm_id, "1");
         assert_eq!(revision.artifact_url, None);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[serial]
+    async fn test_duplicate_version() {
+        let _logging = logging_setup();
+        let db = PostresDatabase {
+            db: setup_schema().await.unwrap(),
+            date_time_provider: DateTimeProvider::RealDateTime,
+        };
+
+        db.create_org("foo".to_owned()).await.unwrap();
+        db.create_repo("foo", "bar").await.unwrap();
+
+        let revision = db
+            .create_revision(
+                &RevisionParam {
+                    org_name: "foo",
+                    repo_name: "bar",
+                    revision: "1.2.3",
+                },
+                &CreateRevisionParam {
+                    scm_id: "1",
+                    artifact_url: None,
+                    labels: RevisionLabels::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(revision.revision_name, "1.2.3");
+        assert_eq!(revision.scm_id, "1");
+        assert_eq!(revision.artifact_url, None);
+
+        let revision = db
+            .create_revision(
+                &RevisionParam {
+                    org_name: "foo",
+                    repo_name: "bar",
+                    revision: "1.2.3",
+                },
+                &CreateRevisionParam {
+                    scm_id: "1",
+                    artifact_url: None,
+                    labels: RevisionLabels::default(),
+                },
+            )
+            .await
+            .unwrap();
     }
 }
