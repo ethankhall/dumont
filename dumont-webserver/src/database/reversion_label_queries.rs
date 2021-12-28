@@ -1,7 +1,7 @@
 use crate::database::{
     entity::{self, prelude::*},
     reversion_queries::{models::RevisionParam, RevisionQueries},
-    DbResult, PostresDatabase,
+    DbResult, PostgresDatabase,
 };
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
@@ -38,7 +38,7 @@ pub mod models {
     use crate::database::entity::{self};
     use std::collections::BTreeMap;
 
-    pub type RevisionLabels = crate::database::models::GenericLabels;
+    pub type RevisionLabels = crate::models::GenericLabels;
 
     impl From<&Vec<entity::repository_revision_label::Model>> for RevisionLabels {
         fn from(source: &Vec<entity::repository_revision_label::Model>) -> Self {
@@ -61,7 +61,7 @@ pub mod models {
 use models::*;
 
 #[async_trait]
-impl RevisionLabelQueries for PostresDatabase {
+impl RevisionLabelQueries for PostgresDatabase {
     #[instrument(level = "debug", skip(self))]
     async fn sql_get_revision_labels(
         &self,
@@ -149,16 +149,16 @@ impl RevisionLabelQueries for PostresDatabase {
 mod integ_test {
     use super::*;
     use crate::database::{
-        common_tests::*, org_queries::*, reversion_queries::models::CreateRevisionParam,
-        DateTimeProvider,
+        org_queries::*, reversion_queries::models::CreateRevisionParam, DateTimeProvider,
     };
+    use crate::test_utils::*;
     use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_adding_labels() {
         // let _logging = logging_setup();
-        let db = PostresDatabase {
+        let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };

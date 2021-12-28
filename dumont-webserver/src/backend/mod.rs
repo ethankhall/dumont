@@ -9,8 +9,6 @@ use crate::database::prelude::*;
 
 #[derive(Error, Debug)]
 pub enum BackendError {
-    #[error("{id} not found")]
-    NotFound { id: String },
     #[error(transparent)]
     DatabaseError {
         #[from]
@@ -19,13 +17,13 @@ pub enum BackendError {
 }
 
 pub struct DefaultBackend {
-    database: PostresDatabase,
+    pub database: PostgresDatabase,
 }
 
 impl DefaultBackend {
     pub async fn new(db_connection_string: String) -> Result<Self, BackendError> {
         Ok(Self {
-            database: PostresDatabase::new(db_connection_string).await?,
+            database: PostgresDatabase::new(db_connection_string).await?,
         })
     }
 
@@ -111,12 +109,36 @@ impl DefaultBackend {
         labels: BTreeMap<String, String>,
     ) -> Result<DataStoreRepository, BackendError> {
         self.database
-            .set_repo_labels(&RepoParam::new("foo", "bar"), labels)
+            .set_repo_labels(&RepoParam::new(org_name, repo_name), labels)
             .await?;
         let repo = self
             .database
             .get_repo(&RepoParam::new(org_name, repo_name))
             .await?;
         Ok(repo.into())
+    }
+
+    pub async fn create_version(
+        &self,
+        org_name: &str,
+        repo_name: &str,
+        version_name: &str,
+        scm_id: &str,
+        labels: BTreeMap<String, String>,
+    ) -> Result<DataStoreRevision, BackendError> {
+        let param = RevisionParam::new(org_name, repo_name, version_name);
+        self.database
+            .create_revision(
+                &param,
+                &CreateRevisionParam {
+                    scm_id,
+                    artifact_url: None,
+                    labels: labels.into(),
+                },
+            )
+            .await?;
+
+        let revision = self.database.get_revision(&param).await?;
+        Ok(revision.into())
     }
 }

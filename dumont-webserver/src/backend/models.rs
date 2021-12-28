@@ -1,5 +1,4 @@
 use crate::database::prelude::{DbOrganization, DbRepo};
-use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
 pub struct PaginationOptions {
@@ -54,7 +53,7 @@ impl From<Vec<crate::database::prelude::DbOrganizationModel>> for DataStoreOrgan
 pub struct DataStoreRepository {
     pub org_name: String,
     pub repo_name: String,
-    pub labels: BTreeMap<String, String>,
+    pub labels: crate::models::GenericLabels,
 }
 
 impl From<crate::database::prelude::DbRepoModel> for DataStoreRepository {
@@ -68,7 +67,7 @@ impl From<&crate::database::prelude::DbRepoModel> for DataStoreRepository {
         Self {
             org_name: source.get_org_name(),
             repo_name: source.get_repo_name(),
-            labels: source.labels.labels.clone(),
+            labels: source.labels.clone(),
         }
     }
 }
@@ -86,18 +85,19 @@ impl From<Vec<crate::database::prelude::DbRepoModel>> for DataStoreRepositoryLis
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct DataStoreRepositoryTag {
-    pub id: i64,
-    pub repo: DataStoreRepository,
-    pub tag: String,
+#[derive(Debug)]
+pub struct DataStoreRevision {
+    pub scm_id: String,
+    pub version: String,
+    pub labels: crate::models::GenericLabels,
 }
 
-#[derive(Debug)]
-pub struct DataStoreRepositoryRevision {
-    pub id: i64,
-    pub repo: DataStoreRepository,
-    pub revision_name: String,
-    pub revision_id: String,
-    pub revision_state: String,
+impl From<crate::database::prelude::DbRevisionModel> for DataStoreRevision {
+    fn from(source: crate::database::prelude::DbRevisionModel) -> Self {
+        Self {
+            scm_id: source.scm_id.clone(),
+            version: source.revision_name.clone(),
+            labels: source.labels,
+        }
+    }
 }

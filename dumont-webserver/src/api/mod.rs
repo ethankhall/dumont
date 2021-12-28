@@ -1,5 +1,6 @@
 mod orgs;
 mod repos;
+mod versions;
 
 use warp::{Filter, Reply};
 
@@ -92,7 +93,9 @@ mod filters {
     use warp::{Filter, Rejection, Reply};
 
     pub fn api(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        super::orgs::create_org_api(db.clone()).or(super::repos::create_repo_api(db.clone()))
+        super::orgs::create_org_api(db.clone())
+            .or(super::repos::create_repo_api(db.clone()))
+            .or(super::versions::create_version_api(db.clone()))
     }
 }
 
@@ -116,13 +119,13 @@ mod canned_response {
         pub fn from_context(error: BackendError) -> Self {
             let message = error.to_string();
             match error {
-                BackendError::NotFound { id: _ } => Self {
-                    code: StatusCode::NOT_FOUND,
-                    message,
-                },
                 BackendError::DatabaseError { source } => match source {
                     DatabaseError::NotFound { error } => Self {
                         code: StatusCode::NOT_FOUND,
+                        message: error.to_string(),
+                    },
+                    DatabaseError::AlreadyExists { error } => Self {
+                        code: StatusCode::CONFLICT,
                         message: error.to_string(),
                     },
                     _ => {

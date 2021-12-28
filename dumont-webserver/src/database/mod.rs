@@ -1,8 +1,6 @@
 // Generated with `sea-orm-cli generate entity -s public -o src/database/entity`
 mod entity;
 
-#[cfg(test)]
-mod common_tests;
 mod org_queries;
 mod repo_label_queries;
 mod repo_queries;
@@ -72,48 +70,7 @@ pub enum DatabaseError {
     },
 }
 
-pub mod models {
-    use std::collections::BTreeMap;
-    use std::ops::Deref;
-
-    #[derive(Debug, PartialEq, Eq)]
-    pub struct GenericLabels {
-        pub labels: BTreeMap<String, String>,
-    }
-
-    impl From<BTreeMap<String, String>> for GenericLabels {
-        fn from(source: BTreeMap<String, String>) -> Self {
-            Self { labels: source }
-        }
-    }
-
-    impl From<Vec<(&str, &str)>> for GenericLabels {
-        fn from(source: Vec<(&str, &str)>) -> Self {
-            let mut labels: BTreeMap<String, String> = Default::default();
-            for (key, value) in source {
-                labels.insert(key.to_owned(), value.to_owned());
-            }
-
-            labels.into()
-        }
-    }
-
-    impl Deref for GenericLabels {
-        type Target = BTreeMap<String, String>;
-        fn deref(&self) -> &Self::Target {
-            &self.labels
-        }
-    }
-
-    impl Default for GenericLabels {
-        fn default() -> Self {
-            Self {
-                labels: Default::default(),
-            }
-        }
-    }
-}
-
+#[derive(Clone, Debug)]
 pub enum DateTimeProvider {
     RealDateTime,
 }
@@ -124,12 +81,13 @@ impl DateTimeProvider {
     }
 }
 
-pub struct PostresDatabase {
-    db: DatabaseConnection,
-    date_time_provider: DateTimeProvider,
+#[derive(Debug)]
+pub struct PostgresDatabase {
+    pub db: DatabaseConnection,
+    pub date_time_provider: DateTimeProvider,
 }
 
-impl PostresDatabase {
+impl PostgresDatabase {
     pub async fn new<S: Into<String>>(connection_url: S) -> prelude::DbResult<Self> {
         let mut opts: ConnectOptions = ConnectOptions::new(connection_url.into());
         opts.sqlx_logging(cfg!(debug_assertions) || cfg!(test_assertions));
@@ -148,7 +106,10 @@ pub mod prelude {
     pub use super::repo_label_queries::{models::*, RepoLabelQueries};
     pub use super::repo_queries::{models::*, DbRepo, RepoQueries};
     pub use super::reversion_label_queries::{models::*, RevisionLabelQueries};
+    pub use super::reversion_queries::{models::*, RevisionQueries};
     pub use super::DbResult;
-    pub use super::{AlreadyExistsError, DatabaseError, NotFoundError, PostresDatabase};
+    pub use super::{
+        AlreadyExistsError, DatabaseError, DateTimeProvider, NotFoundError, PostgresDatabase,
+    };
     pub use thiserror::Error;
 }

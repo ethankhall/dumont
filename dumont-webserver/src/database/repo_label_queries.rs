@@ -1,7 +1,7 @@
 use crate::database::{
     entity::{self, prelude::*},
     repo_queries::{RepoParam, RepoQueries},
-    DbResult, PostresDatabase,
+    DbResult, PostgresDatabase,
 };
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
@@ -13,7 +13,7 @@ pub mod models {
     use crate::database::entity;
     use std::collections::BTreeMap;
 
-    pub type RepoLabels = crate::database::models::GenericLabels;
+    pub type RepoLabels = crate::models::GenericLabels;
 
     impl From<&Vec<entity::repository_label::Model>> for RepoLabels {
         fn from(source: &Vec<entity::repository_label::Model>) -> Self {
@@ -58,7 +58,7 @@ pub trait RepoLabelQueries {
 }
 
 #[async_trait]
-impl RepoLabelQueries for PostresDatabase {
+impl RepoLabelQueries for PostgresDatabase {
     #[instrument(level = "debug", skip(self))]
     async fn get_repo_labels(&self, repo_param: &RepoParam<'_>) -> DbResult<RepoLabels> {
         let repo = self
@@ -134,15 +134,15 @@ impl RepoLabelQueries for PostresDatabase {
 mod integ_test {
     use super::*;
     use crate::database::{
-        common_tests::*, org_queries::OrganizationQueries, repo_queries::models::CreateRepoParam,
-        DateTimeProvider,
+        org_queries::OrganizationQueries, repo_queries::models::CreateRepoParam, DateTimeProvider,
     };
+    use crate::test_utils::*;
     use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn update_labels() {
-        let db = PostresDatabase {
+        let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };

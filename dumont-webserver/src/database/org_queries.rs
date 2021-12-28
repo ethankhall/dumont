@@ -1,7 +1,7 @@
 use crate::backend::models::PaginationOptions;
 use crate::database::{
     entity::{self, prelude::*},
-    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostresDatabase,
+    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
 };
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
@@ -62,7 +62,7 @@ pub trait OrganizationQueries {
 }
 
 #[async_trait]
-impl OrganizationQueries for PostresDatabase {
+impl OrganizationQueries for PostgresDatabase {
     #[instrument(level = "debug", skip(self))]
     async fn create_org(&self, org_name: &str) -> DbResult<DbOrganizationModel> {
         use entity::organization::ActiveModel;
@@ -164,13 +164,14 @@ impl OrganizationQueries for PostresDatabase {
 #[cfg(test)]
 mod integ_test {
     use super::*;
-    use crate::database::{common_tests::*, DateTimeProvider};
+    use crate::database::DateTimeProvider;
+    use crate::test_utils::*;
     use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_orgs() {
-        let db = PostresDatabase {
+        let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -218,7 +219,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_org_pagination() {
-        let db = PostresDatabase {
+        let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };

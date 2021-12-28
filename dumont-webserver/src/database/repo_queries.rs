@@ -3,7 +3,7 @@ use crate::database::{
     entity::{self, prelude::*},
     org_queries::OrganizationQueries,
     repo_label_queries::RepoLabelQueries,
-    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostresDatabase,
+    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
 };
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
@@ -126,7 +126,7 @@ pub trait RepoQueries {
 }
 
 #[async_trait]
-impl RepoQueries for PostresDatabase {
+impl RepoQueries for PostgresDatabase {
     #[instrument(level = "debug", skip(self))]
     async fn create_repo(
         &self,
@@ -288,13 +288,14 @@ impl RepoQueries for PostresDatabase {
 #[cfg(test)]
 mod integ_test {
     use super::*;
-    use crate::database::{common_tests::*, DateTimeProvider};
+    use crate::database::DateTimeProvider;
+    use crate::test_utils::*;
     use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_repos() {
-        let db = PostresDatabase {
+        let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -369,7 +370,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_repo_pagination() {
-        let db = PostresDatabase {
+        let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -415,7 +416,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_delete_repo() {
-        let db = PostresDatabase {
+        let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };

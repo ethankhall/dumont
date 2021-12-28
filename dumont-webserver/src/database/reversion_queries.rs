@@ -3,7 +3,7 @@ use crate::database::{
     entity::{self, prelude::*},
     repo_queries::RepoQueries,
     reversion_label_queries::RevisionLabelQueries,
-    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostresDatabase,
+    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
 };
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
@@ -98,7 +98,7 @@ pub mod models {
 use models::*;
 
 #[async_trait]
-impl RevisionQueries for PostresDatabase {
+impl RevisionQueries for PostgresDatabase {
     #[instrument(level = "debug", skip(self))]
     async fn create_revision(
         &self,
@@ -230,15 +230,15 @@ impl RevisionQueries for PostresDatabase {
 mod integ_test {
     use super::*;
     use crate::database::{
-        common_tests::*, org_queries::*, reversion_label_queries::models::RevisionLabels,
-        DateTimeProvider,
+        org_queries::*, reversion_label_queries::models::RevisionLabels, DateTimeProvider,
     };
+    use crate::test_utils::*;
     use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_revison_create() {
-        let db = PostresDatabase {
+        let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -267,7 +267,7 @@ mod integ_test {
     #[serial]
     async fn test_duplicate_version() {
         // let _logging = logging_setup();
-        let db = PostresDatabase {
+        let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };

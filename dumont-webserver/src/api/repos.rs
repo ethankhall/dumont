@@ -1,24 +1,26 @@
 use super::canned_response::ApplicationError;
 use super::prelude::*;
 use crate::backend::BackendError;
-use std::collections::BTreeMap;
 use tracing::info;
 use warp::{Filter, Rejection, Reply};
 
 use serde::{Deserialize, Serialize};
 
+type RepoLabels = crate::models::GenericLabels;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateRepository {
     pub repo: String,
-    #[serde(default)]
-    pub labels: BTreeMap<String, String>,
+    #[serde(flatten, default)]
+    pub labels: RepoLabels,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetRepository {
     pub org: String,
     pub repo: String,
-    pub labels: BTreeMap<String, String>,
+    #[serde(flatten, default)]
+    pub labels: RepoLabels,
 }
 
 impl From<&crate::backend::models::DataStoreRepository> for GetRepository {
@@ -43,7 +45,8 @@ impl From<crate::backend::models::DataStoreRepository> for GetRepository {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateRepository {
-    pub labels: BTreeMap<String, String>,
+    #[serde(flatten, default)]
+    pub labels: RepoLabels,
 }
 
 pub fn create_repo_api(
@@ -70,7 +73,7 @@ async fn create_repo_impl(
     repo: CreateRepository,
     db: crate::Db,
 ) -> Result<impl Reply, Rejection> {
-    let result = db.create_repo(&org, &repo.repo, repo.labels).await;
+    let result = db.create_repo(&org, &repo.repo, repo.labels.labels).await;
     let result = result.map(GetRepository::from);
     wrap_body(result.map_err(ApplicationError::from_context))
 }
@@ -143,7 +146,7 @@ async fn update_repo_impl(
     update: UpdateRepository,
     db: crate::Db,
 ) -> Result<impl Reply, Rejection> {
-    if let Err(err) = db.update_repo(&org, &repo, update.labels).await {
+    if let Err(err) = db.update_repo(&org, &repo, update.labels.labels).await {
         return wrap_body(Err(ApplicationError::from_context(err)));
     }
 

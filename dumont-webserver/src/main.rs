@@ -23,8 +23,53 @@ use opentelemetry_otlp::WithExportConfig;
 mod api;
 mod backend;
 mod database;
+#[cfg(test)]
+pub mod test_utils;
 
 pub type Db = Arc<DefaultBackend>;
+
+pub mod models {
+    use serde::{Deserialize, Serialize};
+    use std::collections::BTreeMap;
+    use std::ops::Deref;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct GenericLabels {
+        pub labels: BTreeMap<String, String>,
+    }
+
+    impl From<BTreeMap<String, String>> for GenericLabels {
+        fn from(source: BTreeMap<String, String>) -> Self {
+            Self { labels: source }
+        }
+    }
+
+    impl From<Vec<(&str, &str)>> for GenericLabels {
+        fn from(source: Vec<(&str, &str)>) -> Self {
+            let mut labels: BTreeMap<String, String> = Default::default();
+            for (key, value) in source {
+                labels.insert(key.to_owned(), value.to_owned());
+            }
+
+            labels.into()
+        }
+    }
+
+    impl Deref for GenericLabels {
+        type Target = BTreeMap<String, String>;
+        fn deref(&self) -> &Self::Target {
+            &self.labels
+        }
+    }
+
+    impl Default for GenericLabels {
+        fn default() -> Self {
+            Self {
+                labels: Default::default(),
+            }
+        }
+    }
+}
 
 #[derive(Parser, Debug)]
 #[clap(author, about, version)]

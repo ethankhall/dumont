@@ -1,6 +1,25 @@
-use super::prelude::*;
+use crate::database::prelude::*;
 pub use sea_orm::{entity::*, query::*, Database, DatabaseConnection, DbBackend};
 use sqlx::postgres::PgPoolOptions;
+use std::sync::Arc;
+
+pub async fn make_db() -> (PostgresDatabase, crate::Db) {
+    setup_schema().await.unwrap();
+    let db = PostgresDatabase {
+        db: Database::connect("postgresql://postgres:password@127.0.0.1:5432/postgres_test")
+            .await
+            .unwrap(),
+        date_time_provider: DateTimeProvider::RealDateTime,
+    };
+    let backend = Arc::new(crate::backend::DefaultBackend { database: db });
+    let db = PostgresDatabase {
+        db: Database::connect("postgresql://postgres:password@127.0.0.1:5432/postgres_test")
+            .await
+            .unwrap(),
+        date_time_provider: DateTimeProvider::RealDateTime,
+    };
+    (db, backend)
+}
 
 pub async fn setup_schema() -> DbResult<DatabaseConnection> {
     let pool = PgPoolOptions::new()
@@ -50,7 +69,7 @@ pub fn logging_setup() -> () {
     tracing_log::LogTracer::init().expect("logging to work correctly")
 }
 
-pub async fn create_repo(db: &PostresDatabase, org: &str, repo: &str) -> DbResult<()> {
+pub async fn create_repo(db: &PostgresDatabase, org: &str, repo: &str) -> DbResult<()> {
     create_repo_with_params(db, org, repo, CreateRepoParam::default())
         .await
         .unwrap();
@@ -59,7 +78,7 @@ pub async fn create_repo(db: &PostresDatabase, org: &str, repo: &str) -> DbResul
 }
 
 pub async fn create_repo_with_params(
-    db: &PostresDatabase,
+    db: &PostgresDatabase,
     org: &str,
     repo: &str,
     create_param: CreateRepoParam,

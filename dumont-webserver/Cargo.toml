@@ -39,3 +39,4 @@ sqlx = { version = "0.5", features = [ "postgres", "migrate" ] }
 [dev-dependencies]
 sea-orm = { version = "0.4", features = [ "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls", "macros" ] }
 serial_test = "0.5.1"
+json = "*"
