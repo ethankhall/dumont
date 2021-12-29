@@ -1,7 +1,7 @@
 use crate::backend::models::PaginationOptions;
 use crate::database::{
     entity::{self, prelude::*},
-    repo_queries::RepoQueries,
+    repo_queries::{models::RepoParam, RepoQueries},
     reversion_label_queries::RevisionLabelQueries,
     AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
 };
@@ -30,14 +30,13 @@ pub trait RevisionQueries {
         revision_param: &RevisionParam<'_>,
     ) -> DbResult<entity::repository_revision::Model>;
 
-    async fn list_revision(
+    async fn list_revisions(
         &self,
-        org_name: &str,
-        repo_name: &str,
+        repo_param: &RepoParam<'_>,
         pagination: PaginationOptions,
     ) -> DbResult<Vec<DbRevisionModel>>;
 
-    // async fn delete_revision(&self, revision_param: &RevisionParam<'_>) -> DbResult<bool>;
+    async fn delete_revision(&self, revision_param: &RevisionParam<'_>) -> DbResult<bool>;
 }
 
 pub mod models {
@@ -63,7 +62,6 @@ pub mod models {
 
     #[derive(Debug)]
     pub struct CreateRevisionParam<'a> {
-        pub scm_id: &'a str,
         pub artifact_url: Option<&'a str>,
         pub labels: RevisionLabels,
     }
@@ -73,7 +71,6 @@ pub mod models {
         pub repo_id: i32,
         pub revision_id: i32,
         pub revision_name: String,
-        pub scm_id: String,
         pub artifact_url: Option<String>,
         pub labels: RevisionLabels,
     }
@@ -87,7 +84,6 @@ pub mod models {
                 repo_id: revision.repo_id,
                 revision_id: revision.revision_id,
                 revision_name: revision.revision_name,
-                scm_id: revision.scm_id,
                 artifact_url: revision.artifact_url,
                 labels: RevisionLabels::from(&labels),
             }
@@ -99,7 +95,7 @@ use models::*;
 
 #[async_trait]
 impl RevisionQueries for PostgresDatabase {
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn create_revision(
         &self,
         revision_param: &RevisionParam<'_>,
@@ -127,7 +123,6 @@ impl RevisionQueries for PostgresDatabase {
         let model = entity::repository_revision::ActiveModel {
             repo_id: Set(repo.repo_id),
             revision_name: Set(revision_param.revision.to_string()),
-            scm_id: Set(create_revision_param.scm_id.to_string()),
             created_at: Set(self.date_time_provider.now().naive_utc()),
             artifact_url: Set(create_revision_param.artifact_url.map(|s| s.to_string())),
             ..Default::default()
@@ -143,7 +138,7 @@ impl RevisionQueries for PostgresDatabase {
         self.get_revision(&revision_param).await
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn get_revision(&self, revision_param: &RevisionParam<'_>) -> DbResult<DbRevisionModel> {
         let revision = self.sql_get_revision(&revision_param).await?;
         let labels = self.sql_get_revision_labels(&revision).await?;
@@ -151,14 +146,37 @@ impl RevisionQueries for PostgresDatabase {
         Ok(DbRevisionModel::from(revision, labels))
     }
 
-    #[instrument(level = "debug", skip(self))]
-    async fn list_revision(
+    #[instrument(skip(self))]
+    async fn delete_revision(&self, revision_param: &RevisionParam<'_>) -> DbResult<bool> {
+        let revision = self.sql_get_raw_revision(&revision_param).await?;
+
+        let revision = match revision {
+            Some(revision) => revision,
+            None => {
+                return Err(DatabaseError::NotFound {
+                    error: NotFoundError::Revision {
+                        org: revision_param.org_name.to_owned(),
+                        repo: revision_param.repo_name.to_owned(),
+                        revision: revision_param.revision.to_owned(),
+                    },
+                });
+            }
+        };
+        let revision: entity::repository_revision::ActiveModel = revision.into();
+        let res = revision.delete(&self.db).await?;
+
+        Ok(res.rows_affected == 1)
+    }
+
+    #[instrument(skip(self))]
+    async fn list_revisions(
         &self,
-        org_name: &str,
-        repo_name: &str,
+        repo_param: &RepoParam<'_>,
         pagination: PaginationOptions,
     ) -> DbResult<Vec<DbRevisionModel>> {
-        let repo = self.sql_get_repo(org_name, repo_name).await?;
+        let repo = self
+            .sql_get_repo(repo_param.org_name, repo_param.repo_name)
+            .await?;
         let select = repo
             .find_related(RepositoryRevision)
             .order_by_asc(entity::repository_revision::Column::RepoId)
@@ -175,7 +193,7 @@ impl RevisionQueries for PostgresDatabase {
         Ok(revisions)
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn sql_get_raw_revision(
         &self,
         revision_param: &RevisionParam<'_>,
@@ -204,7 +222,7 @@ impl RevisionQueries for PostgresDatabase {
         Ok(revision)
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn sql_get_revision(
         &self,
         revision_param: &RevisionParam<'_>,
@@ -237,7 +255,7 @@ mod integ_test {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
-    async fn test_revison_create() {
+    async fn test_reversion_create() {
         let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
@@ -250,7 +268,6 @@ mod integ_test {
             .create_revision(
                 &RevisionParam::new("foo", "bar", "1.2.3"),
                 &CreateRevisionParam {
-                    scm_id: "1",
                     artifact_url: None,
                     labels: RevisionLabels::default(),
                 },
@@ -259,7 +276,6 @@ mod integ_test {
             .unwrap();
 
         assert_eq!(revision.revision_name, "1.2.3");
-        assert_eq!(revision.scm_id, "1");
         assert_eq!(revision.artifact_url, None);
     }
 
@@ -279,7 +295,6 @@ mod integ_test {
             .create_revision(
                 &RevisionParam::new("foo", "bar", "1.2.3"),
                 &CreateRevisionParam {
-                    scm_id: "1",
                     artifact_url: None,
                     labels: RevisionLabels::default(),
                 },
@@ -288,14 +303,12 @@ mod integ_test {
             .unwrap();
 
         assert_eq!(revision.revision_name, "1.2.3");
-        assert_eq!(revision.scm_id, "1");
         assert_eq!(revision.artifact_url, None);
 
         let revision = db
             .create_revision(
                 &RevisionParam::new("foo", "bar", "1.2.3"),
                 &CreateRevisionParam {
-                    scm_id: "1",
                     artifact_url: None,
                     labels: RevisionLabels::default(),
                 },
@@ -306,5 +319,34 @@ mod integ_test {
         let error = revision.unwrap_err();
 
         assert_eq!(error.to_string(), "Revision foo/bar/1.2.3 exists");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[serial]
+    async fn test_delete_revision() {
+        let db = PostgresDatabase {
+            db: setup_schema().await.unwrap(),
+            date_time_provider: DateTimeProvider::RealDateTime,
+        };
+
+        create_org_and_repos(&db, "example", vec!["example-repo-1"])
+            .await
+            .unwrap();
+        create_test_version(&db, "example", "example-repo-1", "1.2.3")
+            .await
+            .unwrap();
+
+        db.delete_revision(&RevisionParam::new("example", "example-repo-1", "1.2.3"))
+            .await
+            .unwrap();
+
+        let revisions = db
+            .list_revisions(
+                &RepoParam::new("example", "example-repo-1"),
+                PaginationOptions::new(0, 50),
+            )
+            .await
+            .unwrap();
+        assert_eq!(revisions.len(), 0)
     }
 }

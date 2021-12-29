@@ -25,7 +25,6 @@ CREATE TABLE repository_revision(
     revision_id SERIAL PRIMARY KEY NOT NULL,
     repo_id INTEGER NOT NULL REFERENCES repository(repo_id) ON DELETE CASCADE,
     revision_name TEXT NOT NULL,
-    scm_id TEXT NOT NULL,
     created_at timestamp NOT NULL DEFAULT now(),
     artifact_url TEXT,
     UNIQUE(repo_id, revision_name)

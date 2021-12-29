@@ -59,7 +59,7 @@ pub trait RepoLabelQueries {
 
 #[async_trait]
 impl RepoLabelQueries for PostgresDatabase {
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn get_repo_labels(&self, repo_param: &RepoParam<'_>) -> DbResult<RepoLabels> {
         let repo = self
             .sql_get_repo(&repo_param.org_name, &repo_param.repo_name)
@@ -69,7 +69,7 @@ impl RepoLabelQueries for PostgresDatabase {
         Ok(labels.into())
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn set_repo_labels(
         &self,
         repo_param: &RepoParam<'_>,
@@ -82,7 +82,7 @@ impl RepoLabelQueries for PostgresDatabase {
         self.sql_set_repo_labels(repo.repo_id, &labels).await
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn sql_set_repo_labels(
         &self,
         repo_id: i32,
@@ -121,7 +121,7 @@ impl RepoLabelQueries for PostgresDatabase {
         Ok(())
     }
 
-    #[instrument(level = "debug", skip(repo, self))]
+    #[instrument(skip(repo, self))]
     async fn sql_get_repo_labels(
         &self,
         repo: &entity::repository::Model,

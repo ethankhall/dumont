@@ -14,4 +14,8 @@ for REPO in {1..5}; do
     http PUT localhost:3030/api/org/example/repo/example$REPO labels:="{\"scm_url\": \"https://example$REPO\"}"
 done
 
+for VERSION in {1..5}; do
+    http POST localhost:3030/api/org/example/repo/example1/version version="1.2.$VERSION" labels:="{\"count\": \"$VERSION\"}"
+done
+
 http GET localhost:3030/api/org/example/repo

@@ -1,13 +1,13 @@
 use crate::backend::DefaultBackend;
 use clap::{ArgGroup, Args, Parser, Subcommand};
 use std::sync::Arc;
+use futures_util::join;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
     fmt::format::{Format, JsonFields, PrettyFields},
     layer::SubscriberExt,
     Registry,
 };
-use tracing_timing::{Builder, Histogram};
 
 use opentelemetry::{
     global,
@@ -35,6 +35,7 @@ pub mod models {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct GenericLabels {
+        #[serde(default)]
         pub labels: BTreeMap<String, String>,
     }
 
@@ -160,20 +161,18 @@ async fn main() -> Result<(), anyhow::Error> {
     let opt = Opts::parse();
 
     global::set_text_map_propagator(TraceContextPropagator::new());
-    let timing = Builder::default()
-        .layer_informed(|_s: &_, _e: &_| Histogram::new_with_max(1_000_000, 2).unwrap());
     let tracer = opentelemetry_otlp::new_pipeline()
         .tracing()
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                .tonic()
+                .with_endpoint(opt.runtime_args.otel_collector),
+        )
         .with_trace_config(
             trace::config()
                 .with_sampler(Sampler::AlwaysOn)
                 .with_id_generator(IdGenerator::default())
                 .with_resource(Resource::new(vec![KeyValue::new("service.name", "dumont")])),
-        )
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-                .with_endpoint(opt.runtime_args.otel_collector),
         )
         .install_batch(opentelemetry::runtime::Tokio)
         .unwrap();
@@ -195,7 +194,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Some(
             tracing_subscriber::fmt::layer()
                 .event_format(Format::default().json().flatten_event(true))
-                .fmt_fields(JsonFields::new()),
+                .fmt_fields(JsonFields::new())
         )
     } else {
         None
@@ -204,7 +203,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let subscriber = Registry::default()
         .with(LevelFilter::from(opt.logging_opts))
         .with(otel_layer)
-        .with(timing)
         .with(json_logger)
         .with(pretty_logger);
 
@@ -231,11 +229,21 @@ async fn run_db_migration(args: RunDatabaseMigrationsArgs) -> Result<(), anyhow:
 }
 
 async fn run_webserver(args: RunWebServerArgs) -> Result<(), anyhow::Error> {
+    use warp::Filter;
+
     let db = Arc::new(backend::DefaultBackend::new(args.db_connection_string).await?);
 
     let filters = api::create_filters(db).await;
 
-    warp::serve(filters).run(([127, 0, 0, 1], 3030)).await;
+    let api_server = warp::serve(filters).run(([127, 0, 0, 1], 3030));
+
+    let admin_server = warp::path("metrics").map(api::metrics::metrics_endpoint)
+        .or(warp::path("status").map(|| "OK"))
+        .with(warp::trace::request());
+
+    let admin_server = warp::serve(admin_server).run(([127, 0, 0, 1], 3031));
+
+    let (_main, _admin) = join!(api_server, admin_server);
 
     Ok(())
 }

@@ -20,9 +20,8 @@ anyhow = "1.0"
 sea-query = "0.20"
 sea-orm = { version = "0.4", features = [ "sqlx-postgres", "runtime-tokio-rustls", "macros" ] }
 semver = "1"
-tracing-subscriber = { version = "0.2", features = ["registry"] }
-tracing-opentelemetry = "0.15"
-tracing-timing = "0.5"
+tracing-subscriber = { version = "0.3", features = ["registry", "json"] }
+tracing-opentelemetry = "0.16"
 tracing-core = "*"
 tracing-log = "0.1"
 tracing = "0.1"
@@ -35,8 +34,13 @@ refinery = { version = "0.7", features = ["postgres"]}
 atty = "0.2"
 human-panic = "1.0.3"
 sqlx = { version = "0.5", features = [ "postgres", "migrate" ] }
+lazy_static = "1.4.0"
+prometheus = "0.13.0"
+futures-util = "0.3.19"
 
 [dev-dependencies]
 sea-orm = { version = "0.4", features = [ "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls", "macros" ] }
 serial_test = "0.5.1"
 json = "*"
+http = "*"
+bytes = "*"

@@ -14,7 +14,7 @@ pub trait RevisionLabelQueries {
     async fn set_revision_labels(
         &self,
         revision_param: &RevisionParam<'_>,
-        labels: BTreeMap<String, String>,
+        labels: RevisionLabels,
     ) -> DbResult<()>;
 
     async fn sql_set_revision_labels(
@@ -62,7 +62,7 @@ use models::*;
 
 #[async_trait]
 impl RevisionLabelQueries for PostgresDatabase {
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn sql_get_revision_labels(
         &self,
         repo: &entity::repository_revision::Model,
@@ -80,7 +80,7 @@ impl RevisionLabelQueries for PostgresDatabase {
             .await?)
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn get_revision_labels(
         &self,
         revision_param: &RevisionParam<'_>,
@@ -90,7 +90,7 @@ impl RevisionLabelQueries for PostgresDatabase {
         Ok(labels.into())
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn sql_set_revision_labels(
         &self,
         revision_id: i32,
@@ -131,15 +131,15 @@ impl RevisionLabelQueries for PostgresDatabase {
         Ok(())
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn set_revision_labels(
         &self,
         revision_param: &RevisionParam<'_>,
-        labels: BTreeMap<String, String>,
+        labels: RevisionLabels,
     ) -> DbResult<()> {
         let revision = self.sql_get_revision(&revision_param).await?;
 
-        self.sql_set_revision_labels(revision.revision_id, &labels)
+        self.sql_set_revision_labels(revision.revision_id, &labels.labels)
             .await?;
         Ok(())
     }
@@ -148,29 +148,25 @@ impl RevisionLabelQueries for PostgresDatabase {
 #[cfg(test)]
 mod integ_test {
     use super::*;
-    use crate::database::{
-        org_queries::*, reversion_queries::models::CreateRevisionParam, DateTimeProvider,
-    };
+    use crate::database::{reversion_queries::models::CreateRevisionParam, DateTimeProvider};
     use crate::test_utils::*;
     use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
-    async fn test_adding_labels() {
+    async fn test_creating_revision_labels() {
         // let _logging = logging_setup();
         let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
-        db.create_org("foo").await.unwrap();
-        create_repo(&db, "foo", "bar").await.unwrap();
+        create_org_and_repos(&db, "foo", vec!["bar"]).await.unwrap();
 
         let revision = db
             .create_revision(
                 &RevisionParam::new("foo", "bar", "1.2.3"),
                 &CreateRevisionParam {
-                    scm_id: "1",
                     artifact_url: None,
                     labels: vec![("key", "value"), ("foo", "bar")].into(),
                 },
@@ -179,10 +175,50 @@ mod integ_test {
             .unwrap();
 
         assert_eq!(revision.revision_name, "1.2.3");
-        assert_eq!(revision.scm_id, "1");
         assert_eq!(revision.artifact_url, None);
         assert_eq!(revision.labels.len(), 2);
         assert_eq!(revision.labels.get("key").unwrap(), "value");
         assert_eq!(revision.labels.get("foo").unwrap(), "bar");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[serial]
+    async fn test_updating_revision_labels() {
+        // let _logging = logging_setup();
+        let db = PostgresDatabase {
+            db: setup_schema().await.unwrap(),
+            date_time_provider: DateTimeProvider::RealDateTime,
+        };
+
+        create_org_and_repos(&db, "foo", vec!["bar"]).await.unwrap();
+
+        let param = RevisionParam::new("foo", "bar", "1.2.3");
+
+        let revision = db
+            .create_revision(
+                &param,
+                &CreateRevisionParam {
+                    artifact_url: None,
+                    labels: vec![("key", "value"), ("foo", "bar")].into(),
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(revision.revision_name, "1.2.3");
+        assert_eq!(revision.artifact_url, None);
+        assert_eq!(revision.labels.len(), 2);
+        assert_eq!(revision.labels.get("key").unwrap(), "value");
+        assert_eq!(revision.labels.get("foo").unwrap(), "bar");
+
+        db.set_revision_labels(&param, vec![("fig", "value")].into())
+            .await
+            .unwrap();
+
+        let revision = db.get_revision(&param).await.unwrap();
+        assert_eq!(revision.revision_name, "1.2.3");
+        assert_eq!(revision.artifact_url, None);
+        assert_eq!(revision.labels.len(), 1);
+        assert_eq!(revision.labels.get("fig").unwrap(), "value");
     }
 }

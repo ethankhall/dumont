@@ -127,7 +127,7 @@ pub trait RepoQueries {
 
 #[async_trait]
 impl RepoQueries for PostgresDatabase {
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn create_repo(
         &self,
         repo_param: &RepoParam<'_>,
@@ -167,7 +167,7 @@ impl RepoQueries for PostgresDatabase {
         self.get_repo_by_id(res.last_insert_id).await
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn get_repo_by_id(&self, repo_id: i32) -> DbResult<DbRepoModel> {
         let found_repo = Repository::find_by_id(repo_id).one(&self.db).await?;
         let found_repo = match found_repo {
@@ -189,7 +189,7 @@ impl RepoQueries for PostgresDatabase {
         Ok(DbRepoModel::from(&found_org, &found_repo, &labels))
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn get_repo(&self, repo_param: &RepoParam<'_>) -> DbResult<DbRepoModel> {
         let repo = self
             .sql_get_repo(repo_param.org_name, repo_param.repo_name)
@@ -204,7 +204,7 @@ impl RepoQueries for PostgresDatabase {
         Ok(DbRepoModel::from(&org, &repo, &labels))
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn list_repo(
         &self,
         org_name: &str,
@@ -229,7 +229,7 @@ impl RepoQueries for PostgresDatabase {
         Ok(repos)
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn delete_repo(&self, repo_param: &RepoParam<'_>) -> DbResult<bool> {
         let repo = self
             .sql_get_repo(repo_param.org_name, repo_param.repo_name)

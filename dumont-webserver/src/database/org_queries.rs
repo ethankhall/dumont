@@ -63,7 +63,7 @@ pub trait OrganizationQueries {
 
 #[async_trait]
 impl OrganizationQueries for PostgresDatabase {
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn create_org(&self, org_name: &str) -> DbResult<DbOrganizationModel> {
         use entity::organization::ActiveModel;
 
@@ -90,7 +90,7 @@ impl OrganizationQueries for PostgresDatabase {
         Ok(DbOrganizationModel::from(model))
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn delete_org(&self, org_name: &str) -> DbResult<bool> {
         use entity::organization::Column;
         let org_name = org_name.to_string();
@@ -109,7 +109,7 @@ impl OrganizationQueries for PostgresDatabase {
         Ok(true)
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn find_org(&self, org_name: &str) -> DbResult<DbOrganizationModel> {
         let org_name = org_name.to_string();
 
@@ -118,7 +118,7 @@ impl OrganizationQueries for PostgresDatabase {
         Ok(DbOrganizationModel::from(org))
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn list_orgs(&self, pagination: PaginationOptions) -> DbResult<Vec<DbOrganizationModel>> {
         use entity::organization::Column;
 
@@ -131,7 +131,7 @@ impl OrganizationQueries for PostgresDatabase {
         Ok(resp.iter().map(DbOrganizationModel::from).collect())
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn sql_get_raw_org(
         &self,
         org_name: &str,
@@ -146,7 +146,7 @@ impl OrganizationQueries for PostgresDatabase {
         Ok(resp)
     }
 
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(skip(self))]
     async fn sql_get_org(&self, org_name: &str) -> DbResult<entity::organization::Model> {
         match self.sql_get_raw_org(org_name).await? {
             Some(org) => Ok(org),

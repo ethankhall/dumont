@@ -1,7 +1,7 @@
-use super::canned_response::ApplicationError;
 use super::prelude::*;
 use crate::backend::BackendError;
 use tracing::info;
+use tracing_attributes::instrument;
 use warp::{Filter, Rejection, Reply};
 
 use serde::{Deserialize, Serialize};
@@ -45,10 +45,11 @@ fn create_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Reject
         .and_then(create_org_impl)
 }
 
+#[instrument(name = "rest_create_org", skip(db))]
 async fn create_org_impl(org: CreateOrganization, db: crate::Db) -> Result<impl Reply, Rejection> {
     let result = db.create_organization(&org.org).await;
     let result = result.map(|org| GetOrganization { org: org.name });
-    wrap_body(result.map_err(ApplicationError::from_context))
+    wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
 fn delete_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -59,10 +60,11 @@ fn delete_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Reject
         .and_then(delete_org_impl)
 }
 
+#[instrument(name = "rest_delete_org", skip(db))]
 async fn delete_org_impl(org_name: String, db: crate::Db) -> Result<impl Reply, Rejection> {
     let result = db.delete_organization(&org_name).await;
     let result: Result<DeleteStatus, BackendError> = result.map(DeleteStatus::from);
-    wrap_body(result.map_err(ApplicationError::from_context))
+    wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
 fn list_orgs(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -74,15 +76,15 @@ fn list_orgs(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejecti
         .and_then(list_orgs_impl)
 }
 
+#[instrument(name = "rest_list_org", skip(db))]
 async fn list_orgs_impl(
     pageination: ApiPagination,
     db: crate::Db,
 ) -> Result<impl Reply, Rejection> {
     let result = db.get_organizations(pageination.into()).await;
-    let result: Result<DataWrapper<Vec<GetOrganization>>, BackendError> = result.map(|orgs_list| {
-        DataWrapper::new(orgs_list.orgs.iter().map(GetOrganization::from).collect())
-    });
-    wrap_body(result.map_err(ApplicationError::from_context))
+    let result: Result<Vec<GetOrganization>, BackendError> =
+        result.map(|orgs_list| orgs_list.orgs.iter().map(GetOrganization::from).collect());
+    wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
 fn get_an_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -93,18 +95,19 @@ fn get_an_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Reject
         .and_then(get_an_org_impl)
 }
 
+#[instrument(name = "rest_get_org", skip(db))]
 async fn get_an_org_impl(org_name: String, db: crate::Db) -> Result<impl Reply, Rejection> {
     let result = db.get_organization(&org_name).await;
     let result: Result<GetOrganization, BackendError> =
         result.map(|org| GetOrganization::from(org));
-    wrap_body(result.map_err(ApplicationError::from_context))
+    wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
 #[cfg(test)]
 mod integ_test {
     use super::*;
     use crate::test_utils::*;
-    use json::object;
+    use json::{array, object};
     use serial_test::serial;
     use warp::test::request;
 
@@ -123,9 +126,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_eq!(response.status(), 200);
-        let body = json::parse(&String::from_utf8(response.body().to_vec()).unwrap()).unwrap();
-        assert_eq!(body, object! {"org":  "example-org"});
+        assert_200_response(response, object! {"org":  "example-org"});
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -143,9 +144,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_eq!(response.status(), 200);
-        let body = json::parse(&String::from_utf8(response.body().to_vec()).unwrap()).unwrap();
-        assert_eq!(body, object! {"org":  "example-org"});
+        assert_200_response(response, object! {"org":  "example-org"});
 
         let response = request()
             .path("/api/org")
@@ -156,14 +155,10 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_eq!(response.status(), 409);
-        let body = json::parse(&String::from_utf8(response.body().to_vec()).unwrap()).unwrap();
-        assert_eq!(
-            body,
-            object! {
-                "code": 409,
-                "message": "Org example-org exists"
-            }
+        assert_error_response(
+            response,
+            http::StatusCode::CONFLICT,
+            "Org example-org exists",
         );
     }
 
@@ -182,9 +177,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_eq!(response.status(), 200);
-        let body = json::parse(&String::from_utf8(response.body().to_vec()).unwrap()).unwrap();
-        assert_eq!(body, object! {"org":  "example-org"});
+        assert_200_response(response, object! {"org":  "example-org"});
 
         let response = request()
             .path("/api/org")
@@ -195,9 +188,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_eq!(response.status(), 200);
-        let body = json::parse(&String::from_utf8(response.body().to_vec()).unwrap()).unwrap();
-        assert_eq!(body, object! {"org":  "example-org-2"});
+        assert_200_response(response, object! {"org":  "example-org-2"});
 
         let filter = list_orgs(db.clone()).recover(crate::api::canned_response::handle_rejection);
 
@@ -207,11 +198,9 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_eq!(response.status(), 200);
-        let body = json::parse(&String::from_utf8(response.body().to_vec()).unwrap()).unwrap();
-        assert_eq!(
-            body,
-            object! {"data":  [{"org": "example-org"}, {"org": "example-org-2"}]}
+        assert_200_response(
+            response,
+            array!({"org": "example-org"}, {"org": "example-org-2"}),
         );
     }
 
@@ -230,9 +219,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_eq!(response.status(), 200);
-        let body = json::parse(&String::from_utf8(response.body().to_vec()).unwrap()).unwrap();
-        assert_eq!(body, object! {"org":  "example-org"});
+        assert_200_response(response, object! {"org":  "example-org"});
 
         let filter = delete_org(db.clone()).recover(crate::api::canned_response::handle_rejection);
         let response = request()
@@ -241,13 +228,11 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_eq!(response.status(), 200);
-        let body = json::parse(&String::from_utf8(response.body().to_vec()).unwrap()).unwrap();
-        assert_eq!(
-            body,
+        assert_200_response(
+            response,
             object! {
                 "deleted": true,
-            }
+            },
         );
 
         let filter = list_orgs(db.clone()).recover(crate::api::canned_response::handle_rejection);
@@ -258,8 +243,6 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_eq!(response.status(), 200);
-        let body = json::parse(&String::from_utf8(response.body().to_vec()).unwrap()).unwrap();
-        assert_eq!(body, object! {"data":  []});
+        assert_200_response(response, array! {});
     }
 }

@@ -85,19 +85,36 @@ impl From<Vec<crate::database::prelude::DbRepoModel>> for DataStoreRepositoryLis
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub struct DataStoreVersionList {
+    pub versions: Vec<DataStoreRevision>,
+}
+
+impl From<Vec<crate::database::prelude::DbRevisionModel>> for DataStoreVersionList {
+    fn from(source: Vec<crate::database::prelude::DbRevisionModel>) -> Self {
+        let versions: Vec<DataStoreRevision> = source.iter().map(|it| it.into()).collect();
+
+        Self { versions }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct DataStoreRevision {
-    pub scm_id: String,
     pub version: String,
     pub labels: crate::models::GenericLabels,
 }
 
 impl From<crate::database::prelude::DbRevisionModel> for DataStoreRevision {
     fn from(source: crate::database::prelude::DbRevisionModel) -> Self {
+        (&source).into()
+    }
+}
+
+impl From<&crate::database::prelude::DbRevisionModel> for DataStoreRevision {
+    fn from(source: &crate::database::prelude::DbRevisionModel) -> Self {
         Self {
-            scm_id: source.scm_id.clone(),
             version: source.revision_name.clone(),
-            labels: source.labels,
+            labels: source.labels.clone(),
         }
     }
 }

@@ -77,6 +77,37 @@ pub async fn create_repo(db: &PostgresDatabase, org: &str, repo: &str) -> DbResu
     Ok(())
 }
 
+pub async fn create_org_and_repos(
+    db: &PostgresDatabase,
+    org: &str,
+    repos: Vec<&str>,
+) -> DbResult<()> {
+    db.create_org(org).await.unwrap();
+    for repo in repos {
+        create_repo(&db, org, repo).await.unwrap();
+    }
+
+    Ok(())
+}
+
+pub async fn create_test_version(
+    db: &PostgresDatabase,
+    org: &str,
+    repo: &str,
+    version: &str,
+) -> DbResult<()> {
+    db.create_revision(
+        &RevisionParam::new(org, repo, version),
+        &CreateRevisionParam {
+            artifact_url: None,
+            labels: vec![("version", version)].into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    Ok(())
+}
 pub async fn create_repo_with_params(
     db: &PostgresDatabase,
     org: &str,
@@ -88,4 +119,57 @@ pub async fn create_repo_with_params(
         .unwrap();
 
     Ok(())
+}
+
+pub fn assert_200_response(response: http::Response<bytes::Bytes>, expected_body: json::JsonValue) {
+    assert_response(response, http::StatusCode::OK, expected_body);
+}
+
+pub fn assert_response(
+    response: http::Response<bytes::Bytes>,
+    status: http::StatusCode,
+    expected_body: json::JsonValue,
+) {
+    use json::object;
+    let body = String::from_utf8(response.body().to_vec()).unwrap();
+    println!("{:?}", body);
+    let body = match json::parse(&body) {
+        Err(e) => {
+            println!("Unable to deserialize {:?}. Error: {:?}", body, e);
+            unreachable!()
+        }
+        Ok(body) => body,
+    };
+    assert_eq!(
+        json::stringify(body),
+        json::stringify(object! {
+            "status": { "code": response.status().as_u16() },
+            "data": expected_body
+        })
+    );
+    assert_eq!(response.status(), status);
+}
+
+pub fn assert_error_response(
+    response: http::Response<bytes::Bytes>,
+    status: http::StatusCode,
+    message: &str,
+) {
+    use json::object;
+    let body = String::from_utf8(response.body().to_vec()).unwrap();
+    println!("{:?}", body);
+    let body = match json::parse(&body) {
+        Err(e) => {
+            println!("Unable to deserialize {:?}. Error: {:?}", body, e);
+            unreachable!()
+        }
+        Ok(body) => body,
+    };
+    assert_eq!(
+        json::stringify(body),
+        json::stringify(object! {
+            "status": { "code": response.status().as_u16(), "error": [message] },
+        })
+    );
+    assert_eq!(response.status(), status);
 }

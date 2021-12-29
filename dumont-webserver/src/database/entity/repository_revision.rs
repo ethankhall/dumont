@@ -10,8 +10,6 @@ pub struct Model {
     pub repo_id: i32,
     #[sea_orm(column_type = "Text")]
     pub revision_name: String,
-    #[sea_orm(column_type = "Text")]
-    pub scm_id: String,
     pub created_at: DateTime,
     #[sea_orm(column_type = "Text", nullable)]
     pub artifact_url: Option<String>,

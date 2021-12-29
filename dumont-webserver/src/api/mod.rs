@@ -1,16 +1,20 @@
 mod orgs;
 mod repos;
 mod versions;
+pub mod metrics;
 
 use warp::{Filter, Reply};
 
 pub async fn create_filters(
     db: crate::Db,
 ) -> impl Filter<Extract = impl Reply> + Clone + Send + Sync + 'static {
-    filters::api(db).recover(canned_response::handle_rejection)
+    filters::api(db)
+        .recover(canned_response::handle_rejection)
+        .with(warp::trace::request())
 }
 
 pub mod prelude {
+    pub use super::models::*;
     use crate::backend::models::PaginationOptions;
     use serde::{de::DeserializeOwned, Deserialize, Serialize};
     use warp::{reject::Reject, Filter, Rejection, Reply};
@@ -39,21 +43,15 @@ pub mod prelude {
             Ok(value) => value,
         };
 
-        Ok(warp::reply::json(&body))
+        let response = ApplicationResponse {
+            status: StatusResponse::ok(),
+            data: Some(body),
+        };
+
+        Ok(warp::reply::json(&response))
     }
 
-    #[derive(Deserialize, Serialize)]
-    pub struct DataWrapper<T: Serialize> {
-        pub data: T,
-    }
-
-    impl<T: Serialize> DataWrapper<T> {
-        pub fn new(data: T) -> Self {
-            Self { data }
-        }
-    }
-
-    #[derive(Deserialize, Serialize)]
+    #[derive(Debug, Deserialize, Serialize)]
     pub struct ApiPagination {
         pub page: Option<u32>,
         pub size: Option<u32>,
@@ -89,6 +87,92 @@ pub mod prelude {
     }
 }
 
+mod models {
+    use serde::Serialize;
+    use warp::http::StatusCode;
+
+    #[derive(Serialize)]
+    #[serde(remote = "StatusCode")]
+    struct StatusCodeDef {
+        #[serde(getter = "StatusCode::as_u16")]
+        code: u16,
+    }
+
+    #[derive(Debug, Serialize)]
+    #[serde(untagged)]
+    pub enum StatusResponse {
+        Success(SuccessfulStatusResponse),
+        Error(ErrorStatusResponse),
+    }
+
+    #[derive(Debug, Serialize)]
+    pub struct SuccessfulStatusResponse {
+        #[serde(flatten, with = "StatusCodeDef")]
+        pub code: StatusCode,
+    }
+
+    #[derive(Debug, Serialize)]
+    pub struct ErrorStatusResponse {
+        #[serde(flatten, with = "StatusCodeDef")]
+        pub code: StatusCode,
+        pub error: Option<Vec<String>>,
+    }
+
+    impl ErrorStatusResponse {
+        pub fn from_error_message(code: StatusCode, error: String) -> Self {
+            Self {
+                code: code,
+                error: Some(vec![error]),
+            }
+        }
+    }
+
+    impl StatusResponse {
+        pub fn ok() -> Self {
+            StatusResponse::Success(SuccessfulStatusResponse {
+                code: StatusCode::OK,
+            })
+        }
+
+        pub fn status(&self) -> StatusCode {
+            match self {
+                StatusResponse::Error(err) => err.code,
+                StatusResponse::Success(suc) => suc.code,
+            }
+        }
+    }
+
+    #[derive(Debug, Serialize)]
+    pub struct ApplicationResponse<T>
+    where
+        T: Serialize,
+    {
+        pub status: StatusResponse,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub data: Option<T>,
+    }
+
+    #[test]
+    fn validate_create_repo_deserialize() {
+        use json::object;
+
+        let serialized = serde_json::to_string(&ApplicationResponse::<()> {
+            status: StatusResponse::ok(),
+            data: None,
+        })
+        .unwrap();
+
+        assert_eq!(
+            serialized,
+            json::stringify(object! {
+                    "status": {
+                        "code": 200
+                    },
+            })
+        );
+    }
+}
+
 mod filters {
     use warp::{Filter, Rejection, Reply};
 
@@ -96,94 +180,108 @@ mod filters {
         super::orgs::create_org_api(db.clone())
             .or(super::repos::create_repo_api(db.clone()))
             .or(super::versions::create_version_api(db.clone()))
+            .with(warp::log::custom(super::metrics::track_status))
     }
 }
 
 mod canned_response {
+    use super::models::*;
     use crate::backend::BackendError;
     use crate::database::DatabaseError;
-    use serde::Serialize;
-    use serde_json::Value as JsonValue;
     use std::convert::Infallible;
     use std::error::Error;
     use tracing::error;
     use warp::{http::StatusCode, reject::Reject, Rejection, Reply};
 
-    #[derive(Debug)]
-    pub struct ApplicationError {
-        pub code: StatusCode,
-        pub message: String,
-    }
-
-    impl ApplicationError {
-        pub fn from_context(error: BackendError) -> Self {
-            let message = error.to_string();
-            match error {
-                BackendError::DatabaseError { source } => match source {
-                    DatabaseError::NotFound { error } => Self {
-                        code: StatusCode::NOT_FOUND,
-                        message: error.to_string(),
-                    },
-                    DatabaseError::AlreadyExists { error } => Self {
-                        code: StatusCode::CONFLICT,
-                        message: error.to_string(),
-                    },
-                    _ => {
-                        error!("Internal Error: {}", source);
-                        Self {
-                            code: StatusCode::INTERNAL_SERVER_ERROR,
-                            message,
-                        }
-                    }
-                },
+    impl From<Rejection> for ErrorStatusResponse {
+        fn from(source: Rejection) -> Self {
+            if source.is_not_found() {
+                return ErrorStatusResponse::from_error_message(
+                    StatusCode::NOT_FOUND,
+                    "NOT_FOUND".to_owned(),
+                );
+            } else if let Some(resp) = source.find::<ErrorStatusResponse>() {
+                return resp.into();
+            } else if let Some(backend_error) = source.find::<BackendError>() {
+                return backend_error.into();
+            } else if let Some(e) = source.find::<warp::filters::body::BodyDeserializeError>() {
+                let message_body: String = match e.source() {
+                    Some(cause) => cause.to_string(),
+                    None => "BAD_REQUEST".into(),
+                };
+                ErrorStatusResponse::from_error_message(StatusCode::BAD_REQUEST, message_body)
+            } else if source.find::<warp::reject::MethodNotAllowed>().is_some() {
+                ErrorStatusResponse::from_error_message(
+                    StatusCode::METHOD_NOT_ALLOWED,
+                    "METHOD_NOT_ALLOWED".to_owned(),
+                )
+            } else {
+                error!("unhandled rejection: {:?}", source);
+                ErrorStatusResponse::from_error_message(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "UNHANDLED_REJECTION".to_owned(),
+                )
             }
         }
     }
 
-    impl Reject for ApplicationError {}
-
-    #[derive(Serialize)]
-    struct ErrorMessage {
-        pub code: u16,
-        pub message: JsonValue,
-    }
-
-    pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
-        if err.is_not_found() {
-            return to_error_message(StatusCode::NOT_FOUND, serde_json::json!("NOT_FOUND"));
-        } else if let Some(response) = err.find::<ApplicationError>() {
-            return to_error_message(response.code, serde_json::json!(response.message));
-        } else if let Some(e) = err.find::<warp::filters::body::BodyDeserializeError>() {
-            let message_body: String = match e.source() {
-                Some(cause) => cause.to_string(),
-                None => "BAD_REQUEST".into(),
-            };
-            return to_error_message(StatusCode::BAD_REQUEST, serde_json::json!(message_body));
-        } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
-            return to_error_message(
-                StatusCode::METHOD_NOT_ALLOWED,
-                serde_json::json!("METHOD_NOT_ALLOWED"),
-            );
-        } else {
-            error!("unhandled rejection: {:?}", err);
-            return to_error_message(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                serde_json::json!("UNHANDLED_REJECTION"),
-            );
+    impl From<&ErrorStatusResponse> for ErrorStatusResponse {
+        fn from(source: &ErrorStatusResponse) -> Self {
+            Self {
+                code: source.code.clone(),
+                error: source.error.clone(),
+            }
         }
     }
 
-    fn to_error_message(
-        code: StatusCode,
-        message: JsonValue,
-    ) -> std::result::Result<impl Reply, Infallible> {
-        let response = ErrorMessage {
-            code: code.as_u16(),
-            message,
-        };
+    impl From<BackendError> for ErrorStatusResponse {
+        fn from(error: BackendError) -> Self {
+            (&error).into()
+        }
+    }
+
+    impl From<&BackendError> for ErrorStatusResponse {
+        fn from(error: &BackendError) -> Self {
+            let message = error.to_string();
+            match error {
+                BackendError::DatabaseError { source } => match source {
+                    DatabaseError::NotFound { error } => ErrorStatusResponse::from_error_message(
+                        StatusCode::NOT_FOUND,
+                        error.to_string(),
+                    ),
+                    DatabaseError::AlreadyExists { error } => {
+                        ErrorStatusResponse::from_error_message(
+                            StatusCode::CONFLICT,
+                            error.to_string(),
+                        )
+                    }
+                    _ => {
+                        error!("Internal Error: {}", source);
+                        ErrorStatusResponse::from_error_message(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            message,
+                        )
+                    }
+                },
+                BackendError::ConstraintViolation { reason } => {
+                    ErrorStatusResponse::from_error_message(
+                        StatusCode::BAD_REQUEST,
+                        reason.to_string(),
+                    )
+                }
+            }
+        }
+    }
+
+    impl Reject for ErrorStatusResponse {}
+
+    pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
+        let status = StatusResponse::Error(err.into());
+        let status_code = status.status();
+        let response: ApplicationResponse<()> = ApplicationResponse { data: None, status };
 
         let json = warp::reply::json(&response);
 
-        Ok(warp::reply::with_status(json, code))
+        Ok(warp::reply::with_status(json, status_code))
     }
 }

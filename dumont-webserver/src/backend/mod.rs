@@ -1,6 +1,7 @@
 pub mod models;
 use std::collections::BTreeMap;
 
+use crate::models::GenericLabels;
 use models::*;
 use thiserror::Error;
 use tracing::error;
@@ -14,6 +15,14 @@ pub enum BackendError {
         #[from]
         source: DatabaseError,
     },
+    #[error("Requested action was not allowed because: {reason}")]
+    ConstraintViolation { reason: ConstraintViolation },
+}
+
+#[derive(Error, Debug)]
+pub enum ConstraintViolation {
+    #[error("Version string '{version}' was more than the 30 character limit")]
+    VersionToLong { version: String },
 }
 
 pub struct DefaultBackend {
@@ -123,15 +132,20 @@ impl DefaultBackend {
         org_name: &str,
         repo_name: &str,
         version_name: &str,
-        scm_id: &str,
         labels: BTreeMap<String, String>,
     ) -> Result<DataStoreRevision, BackendError> {
+        if version_name.len() > 30 {
+            return Err(BackendError::ConstraintViolation {
+                reason: ConstraintViolation::VersionToLong {
+                    version: version_name.to_owned(),
+                },
+            });
+        }
         let param = RevisionParam::new(org_name, repo_name, version_name);
         self.database
             .create_revision(
                 &param,
                 &CreateRevisionParam {
-                    scm_id,
                     artifact_url: None,
                     labels: labels.into(),
                 },
@@ -140,5 +154,42 @@ impl DefaultBackend {
 
         let revision = self.database.get_revision(&param).await?;
         Ok(revision.into())
+    }
+
+    pub async fn update_version(
+        &self,
+        org_name: &str,
+        repo_name: &str,
+        version_name: &str,
+        labels: GenericLabels,
+    ) -> Result<DataStoreRevision, BackendError> {
+        let param = RevisionParam::new(org_name, repo_name, version_name);
+        self.database.set_revision_labels(&param, labels).await?;
+
+        let revision = self.database.get_revision(&param).await?;
+        Ok(revision.into())
+    }
+
+    pub async fn delete_version(
+        &self,
+        org_name: &str,
+        repo_name: &str,
+        version_name: &str,
+    ) -> Result<bool, BackendError> {
+        let param = RevisionParam::new(org_name, repo_name, version_name);
+        Ok(self.database.delete_revision(&param).await?)
+    }
+
+    pub async fn list_versions(
+        &self,
+        org_name: &str,
+        repo_name: &str,
+        pagination: PaginationOptions,
+    ) -> Result<DataStoreVersionList, BackendError> {
+        Ok(self
+            .database
+            .list_revisions(&RepoParam::new(org_name, repo_name), pagination)
+            .await?
+            .into())
     }
 }
