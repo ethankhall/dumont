@@ -4,8 +4,8 @@ mod entity;
 mod org_queries;
 mod repo_label_queries;
 mod repo_queries;
-mod reversion_label_queries;
-mod reversion_queries;
+mod revision_label_queries;
+mod revision_queries;
 
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use thiserror::Error;
@@ -89,7 +89,13 @@ pub struct PostgresDatabase {
 
 impl PostgresDatabase {
     pub async fn new<S: Into<String>>(connection_url: S) -> prelude::DbResult<Self> {
+        use std::time::Duration;
+
         let mut opts: ConnectOptions = ConnectOptions::new(connection_url.into());
+        opts.max_connections(100)
+            .min_connections(5)
+            .connect_timeout(Duration::from_secs(5))
+            .idle_timeout(Duration::from_secs(10));
         opts.sqlx_logging(cfg!(debug_assertions) || cfg!(test_assertions));
         let db: DatabaseConnection = Database::connect(opts).await?;
 
@@ -105,8 +111,8 @@ pub mod prelude {
     pub use super::org_queries::{models::*, DbOrganization, OrganizationQueries};
     pub use super::repo_label_queries::{models::*, RepoLabelQueries};
     pub use super::repo_queries::{models::*, DbRepo, RepoQueries};
-    pub use super::reversion_label_queries::{models::*, RevisionLabelQueries};
-    pub use super::reversion_queries::{models::*, RevisionQueries};
+    pub use super::revision_label_queries::{models::*, RevisionLabelQueries};
+    pub use super::revision_queries::{models::*, RevisionQueries};
     pub use super::DbResult;
     pub use super::{
         AlreadyExistsError, DatabaseError, DateTimeProvider, NotFoundError, PostgresDatabase,

@@ -88,7 +88,7 @@ pub struct UpdateRepository {
 }
 
 pub fn create_repo_api(
-    db: crate::Db,
+    db: crate::Backend,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     create_repo(db.clone())
         .or(get_repos(db.clone()))
@@ -97,7 +97,7 @@ pub fn create_repo_api(
         .or(update_repo(db.clone()))
 }
 
-fn create_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn create_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("POST /api/org/{{org}}/repo");
     warp::path!("api" / "org" / String / "repo")
         .and(warp::post())
@@ -110,14 +110,14 @@ fn create_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejec
 async fn create_repo_impl(
     org: String,
     repo: CreateRepository,
-    db: crate::Db,
+    db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.create_repo(&org, &repo.repo, repo.labels.labels).await;
     let result = result.map(GetRepository::from);
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn get_repos(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn get_repos(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo");
     warp::path!("api" / "org" / String / "repo")
         .and(warp::get())
@@ -130,7 +130,7 @@ fn get_repos(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejecti
 async fn get_repos_impl(
     org: String,
     pagination: ApiPagination,
-    db: crate::Db,
+    db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.get_repos(&org, pagination.into()).await;
     let result: Result<Vec<GetRepository>, BackendError> =
@@ -138,7 +138,7 @@ async fn get_repos_impl(
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn get_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn get_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo/{{repo}}");
     warp::path!("api" / "org" / String / "repo" / String)
         .and(warp::get())
@@ -147,13 +147,17 @@ fn get_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejectio
 }
 
 #[instrument(name = "rest_org_get", skip(db))]
-async fn get_repo_impl(org: String, repo: String, db: crate::Db) -> Result<impl Reply, Rejection> {
+async fn get_repo_impl(
+    org: String,
+    repo: String,
+    db: crate::Backend,
+) -> Result<impl Reply, Rejection> {
     let result = db.get_repo(&org, &repo).await;
     let result: Result<GetRepository, BackendError> = result.map(GetRepository::from);
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn delete_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn delete_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("DELETE /api/org/{{org}}/repo/{{repo}}");
     warp::path!("api" / "org" / String / "repo" / String)
         .and(warp::delete())
@@ -165,14 +169,14 @@ fn delete_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejec
 async fn delete_repo_impl(
     org: String,
     repo: String,
-    db: crate::Db,
+    db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.delete_repo(&org, &repo).await;
     let result: Result<DeleteStatus, BackendError> = result.map(DeleteStatus::from);
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn update_repo(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn update_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("PUT /api/org/{{org}}/repo/{{repo}}");
     warp::path!("api" / "org" / String / "repo" / String)
         .and(warp::put())
@@ -186,7 +190,7 @@ async fn update_repo_impl(
     org: String,
     repo: String,
     update: UpdateRepository,
-    db: crate::Db,
+    db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     if let Err(err) = db.update_repo(&org, &repo, update.labels.labels).await {
         return wrap_body(Err(ErrorStatusResponse::from(err)));

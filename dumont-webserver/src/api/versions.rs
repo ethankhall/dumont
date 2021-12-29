@@ -94,7 +94,7 @@ impl From<&crate::backend::models::DataStoreRevision> for GetVersion {
 }
 
 pub fn create_version_api(
-    db: crate::Db,
+    db: crate::Backend,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     create_version(db.clone())
         .or(update_version(db.clone()))
@@ -102,7 +102,9 @@ pub fn create_version_api(
         .or(list_versions(db.clone()))
 }
 
-fn create_version(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn create_version(
+    db: crate::Backend,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("POST /api/org/{{org}}/repo/{{repo}}/version");
     warp::path!("api" / "org" / String / "repo" / String / "version")
         .and(warp::post())
@@ -116,7 +118,7 @@ async fn create_version_impl(
     org: String,
     repo: String,
     version: CreateVersion,
-    db: crate::Db,
+    db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db
         .create_version(&org, &repo, &version.version, version.labels.labels)
@@ -125,7 +127,9 @@ async fn create_version_impl(
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn update_version(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn update_version(
+    db: crate::Backend,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("PUT /api/org/{{org}}/repo/{{repo}}/version/{{version}}");
     warp::path!("api" / "org" / String / "repo" / String / "version" / String)
         .and(warp::put())
@@ -140,7 +144,7 @@ async fn update_version_impl(
     repo: String,
     version: String,
     update: UpdateVersion,
-    db: crate::Db,
+    db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db
         .update_version(&org, &repo, &version, update.labels)
@@ -149,7 +153,9 @@ async fn update_version_impl(
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn delete_version(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn delete_version(
+    db: crate::Backend,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("DELETE /api/org/{{org}}/repo/{{repo}}/version/{{version}}");
     warp::path!("api" / "org" / String / "repo" / String / "version" / String)
         .and(warp::delete())
@@ -162,14 +168,16 @@ async fn delete_version_impl(
     org: String,
     repo: String,
     version: String,
-    db: crate::Db,
+    db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.delete_version(&org, &repo, &version).await;
     let result: Result<DeleteStatus, BackendError> = result.map(DeleteStatus::from);
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn list_versions(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn list_versions(
+    db: crate::Backend,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo/{{repo}}/version");
     warp::path!("api" / "org" / String / "repo" / String / "version")
         .and(warp::get())
@@ -183,7 +191,7 @@ async fn list_versions_impl(
     org: String,
     repo: String,
     pagination: ApiPagination,
-    db: crate::Db,
+    db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.list_versions(&org, &repo, pagination.into()).await;
     let result: Result<Vec<GetVersion>, BackendError> =
@@ -338,7 +346,9 @@ mod integ_test {
             .await
             .unwrap();
         for i in 1..100 {
-            create_test_version(&backend, "example", "example-repo-1", &format!("1.2.{}", i)).await.unwrap()
+            create_test_version(&backend, "example", "example-repo-1", &format!("1.2.{}", i))
+                .await
+                .unwrap()
         }
 
         let mut page = Vec::new();
@@ -352,10 +362,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_response(
-            response,
-            http::StatusCode::OK, page.into()
-        );
+        assert_response(response, http::StatusCode::OK, page.into());
 
         let mut page = Vec::new();
         for i in 51..100 {
@@ -368,10 +375,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_response(
-            response,
-            http::StatusCode::OK, page.into()
-        );
+        assert_response(response, http::StatusCode::OK, page.into());
 
         let response = request()
             .path("/api/org/example/repo/example-repo-1/version?page=2")
@@ -379,10 +383,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_response(
-            response,
-            http::StatusCode::OK, array![]
-        );
+        assert_response(response, http::StatusCode::OK, array![]);
 
         let mut page = Vec::new();
         for i in 1..=20 {
@@ -395,10 +396,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_response(
-            response,
-            http::StatusCode::OK, page.into()
-        );
+        assert_response(response, http::StatusCode::OK, page.into());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

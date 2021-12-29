@@ -28,7 +28,7 @@ impl From<&crate::backend::models::DataStoreOrganization> for GetOrganization {
 }
 
 pub fn create_org_api(
-    db: crate::Db,
+    db: crate::Backend,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     create_org(db.clone())
         .or(delete_org(db.clone()))
@@ -36,7 +36,7 @@ pub fn create_org_api(
         .or(get_an_org(db.clone()))
 }
 
-fn create_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn create_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("POST /api/org");
     warp::path!("api" / "org")
         .and(warp::post())
@@ -46,13 +46,16 @@ fn create_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Reject
 }
 
 #[instrument(name = "rest_create_org", skip(db))]
-async fn create_org_impl(org: CreateOrganization, db: crate::Db) -> Result<impl Reply, Rejection> {
+async fn create_org_impl(
+    org: CreateOrganization,
+    db: crate::Backend,
+) -> Result<impl Reply, Rejection> {
     let result = db.create_organization(&org.org).await;
     let result = result.map(|org| GetOrganization { org: org.name });
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn delete_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn delete_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("DELETE /api/org/{{org}}");
     warp::path!("api" / "org" / String)
         .and(warp::delete())
@@ -61,13 +64,13 @@ fn delete_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Reject
 }
 
 #[instrument(name = "rest_delete_org", skip(db))]
-async fn delete_org_impl(org_name: String, db: crate::Db) -> Result<impl Reply, Rejection> {
+async fn delete_org_impl(org_name: String, db: crate::Backend) -> Result<impl Reply, Rejection> {
     let result = db.delete_organization(&org_name).await;
     let result: Result<DeleteStatus, BackendError> = result.map(DeleteStatus::from);
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn list_orgs(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn list_orgs(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("GET /api/org");
     warp::path!("api" / "org")
         .and(warp::get())
@@ -79,7 +82,7 @@ fn list_orgs(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejecti
 #[instrument(name = "rest_list_org", skip(db))]
 async fn list_orgs_impl(
     pageination: ApiPagination,
-    db: crate::Db,
+    db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.get_organizations(pageination.into()).await;
     let result: Result<Vec<GetOrganization>, BackendError> =
@@ -87,7 +90,7 @@ async fn list_orgs_impl(
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn get_an_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn get_an_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}");
     warp::path!("api" / "org" / String)
         .and(warp::get())
@@ -96,7 +99,7 @@ fn get_an_org(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Reject
 }
 
 #[instrument(name = "rest_get_org", skip(db))]
-async fn get_an_org_impl(org_name: String, db: crate::Db) -> Result<impl Reply, Rejection> {
+async fn get_an_org_impl(org_name: String, db: crate::Backend) -> Result<impl Reply, Rejection> {
     let result = db.get_organization(&org_name).await;
     let result: Result<GetOrganization, BackendError> =
         result.map(|org| GetOrganization::from(org));

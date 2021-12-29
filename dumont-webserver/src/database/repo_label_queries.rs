@@ -35,6 +35,11 @@ pub mod models {
 
 pub use models::*;
 
+/**
+ * RepoLabelQueries is a collection of api calls against the database focused
+ * on repo's and their labels. This was split out of the RepoQueries trait because
+ * the trait was getting a little unwieldy to manage.
+ */
 #[async_trait]
 pub trait RepoLabelQueries {
     async fn sql_set_repo_labels(
@@ -54,6 +59,11 @@ pub trait RepoLabelQueries {
     async fn sql_get_repo_labels(
         &self,
         repo: &entity::repository::Model,
+    ) -> DbResult<Vec<entity::repository_label::Model>>;
+
+    async fn sql_get_repo_labels_by_repo_id(
+        &self,
+        repo_id: i32,
     ) -> DbResult<Vec<entity::repository_label::Model>>;
 }
 
@@ -127,6 +137,18 @@ impl RepoLabelQueries for PostgresDatabase {
         repo: &entity::repository::Model,
     ) -> DbResult<Vec<entity::repository_label::Model>> {
         Ok(repo.find_related(RepositoryLabel).all(&self.db).await?)
+    }
+
+    #[instrument(skip(repo_id, self))]
+    async fn sql_get_repo_labels_by_repo_id(
+        &self,
+        repo_id: i32,
+    ) -> DbResult<Vec<entity::repository_label::Model>> {
+        let labels = RepositoryLabel::find()
+            .filter(entity::repository_label::Column::RepoId.eq(repo_id))
+            .all(&self.db)
+            .await?;
+        Ok(labels)
     }
 }
 

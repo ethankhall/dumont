@@ -48,6 +48,13 @@ pub mod models {
 
 pub use models::*;
 
+/**
+ * OrganizationQueries is a collection of api calls against the database focused
+ * on the "organization".
+ *
+ * In general this is a CRUD API, with access to some lower level API's for other
+ * traits to use to use the ORM.
+ */
 #[async_trait]
 pub trait OrganizationQueries {
     async fn create_org(&self, org_name: &str) -> DbResult<DbOrganizationModel>;

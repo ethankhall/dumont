@@ -1,12 +1,12 @@
+pub mod metrics;
 mod orgs;
 mod repos;
 mod versions;
-pub mod metrics;
 
 use warp::{Filter, Reply};
 
 pub async fn create_filters(
-    db: crate::Db,
+    db: crate::Backend,
 ) -> impl Filter<Extract = impl Reply> + Clone + Send + Sync + 'static {
     filters::api(db)
         .recover(canned_response::handle_rejection)
@@ -27,8 +27,8 @@ pub mod prelude {
     }
 
     pub fn with_db(
-        db: crate::Db,
-    ) -> impl Filter<Extract = (crate::Db,), Error = std::convert::Infallible> + Clone {
+        db: crate::Backend,
+    ) -> impl Filter<Extract = (crate::Backend,), Error = std::convert::Infallible> + Clone {
         warp::any().map(move || db.clone())
     }
 
@@ -176,7 +176,7 @@ mod models {
 mod filters {
     use warp::{Filter, Rejection, Reply};
 
-    pub fn api(db: crate::Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    pub fn api(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         super::orgs::create_org_api(db.clone())
             .or(super::repos::create_repo_api(db.clone()))
             .or(super::versions::create_version_api(db.clone()))
@@ -269,6 +269,10 @@ mod canned_response {
                         reason.to_string(),
                     )
                 }
+                BackendError::PolicyViolation { error } => ErrorStatusResponse::from_error_message(
+                    StatusCode::BAD_REQUEST,
+                    error.to_string(),
+                ),
             }
         }
     }

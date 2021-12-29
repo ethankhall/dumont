@@ -6,6 +6,8 @@ use crate::database::{
     AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
 };
 use async_trait::async_trait;
+use futures_util::future::join_all;
+use futures_util::future::TryFutureExt;
 use sea_orm::{entity::*, query::*};
 use tracing::info;
 use tracing_attributes::instrument;
@@ -93,6 +95,13 @@ pub mod models {
 
 pub use models::*;
 
+/**
+ * RepoQueries is a collection of api calls against the database focused
+ * on the "repo".
+ *
+ * In general this is a CRUD API, with access to some lower level API's for other
+ * traits to use to use the ORM.
+ */
 #[async_trait]
 pub trait RepoQueries {
     async fn create_repo(
@@ -220,10 +229,21 @@ impl RepoQueries for PostgresDatabase {
             .fetch_page(pagination.page_number)
             .await?;
 
-        let mut repos = Vec::new();
+        let mut future_repos = Vec::new();
         for repo in select {
-            let labels = self.sql_get_repo_labels(&repo).await?;
-            repos.push(DbRepoModel::from(&org, &repo, &labels));
+            let repo = repo.clone();
+            let org = org.clone();
+            future_repos.push(
+                self.sql_get_repo_labels_by_repo_id(repo.repo_id)
+                    .map_ok(move |labels| DbRepoModel::from(&org, &repo, &labels)),
+            );
+        }
+
+        let resolved_futures = join_all(future_repos).await;
+
+        let mut repos = Vec::new();
+        for future in resolved_futures {
+            repos.push(future?);
         }
 
         Ok(repos)

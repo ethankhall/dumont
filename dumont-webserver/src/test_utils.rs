@@ -3,7 +3,7 @@ pub use sea_orm::{entity::*, query::*, Database, DatabaseConnection, DbBackend};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 
-pub async fn make_db() -> (PostgresDatabase, crate::Db) {
+pub async fn make_db() -> (PostgresDatabase, crate::Backend) {
     setup_schema().await.unwrap();
     let db = PostgresDatabase {
         db: Database::connect("postgresql://postgres:password@127.0.0.1:5432/postgres_test")
@@ -11,7 +11,10 @@ pub async fn make_db() -> (PostgresDatabase, crate::Db) {
             .unwrap(),
         date_time_provider: DateTimeProvider::RealDateTime,
     };
-    let backend = Arc::new(crate::backend::DefaultBackend { database: db });
+    let backend = Arc::new(crate::backend::DefaultBackend {
+        database: db,
+        policy_container: Default::default(),
+    });
     let db = PostgresDatabase {
         db: Database::connect("postgresql://postgres:password@127.0.0.1:5432/postgres_test")
             .await

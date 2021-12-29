@@ -1,7 +1,7 @@
 use crate::backend::DefaultBackend;
 use clap::{ArgGroup, Args, Parser, Subcommand};
-use std::sync::Arc;
 use futures_util::join;
+use std::sync::Arc;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
     fmt::format::{Format, JsonFields, PrettyFields},
@@ -23,10 +23,11 @@ use opentelemetry_otlp::WithExportConfig;
 mod api;
 mod backend;
 mod database;
+mod policy;
 #[cfg(test)]
 pub mod test_utils;
 
-pub type Db = Arc<DefaultBackend>;
+pub type Backend = Arc<DefaultBackend>;
 
 pub mod models {
     use serde::{Deserialize, Serialize};
@@ -101,6 +102,11 @@ pub struct RunWebServerArgs {
     /// Database Connection String
     #[clap(long = "database-url", env = "DATABASE_URL")]
     db_connection_string: String,
+
+    /// File that represents the policies that need to be applied to
+    /// incoming edits.
+    #[clap(long = "policy")]
+    policy_document: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -194,7 +200,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Some(
             tracing_subscriber::fmt::layer()
                 .event_format(Format::default().json().flatten_event(true))
-                .fmt_fields(JsonFields::new())
+                .fmt_fields(JsonFields::new()),
         )
     } else {
         None
@@ -229,15 +235,28 @@ async fn run_db_migration(args: RunDatabaseMigrationsArgs) -> Result<(), anyhow:
 }
 
 async fn run_webserver(args: RunWebServerArgs) -> Result<(), anyhow::Error> {
+    use crate::policy::RealizedPolicyContainer;
     use warp::Filter;
 
-    let db = Arc::new(backend::DefaultBackend::new(args.db_connection_string).await?);
+    let policy_container: RealizedPolicyContainer = match args.policy_document {
+        Some(path) => {
+            let file_string = std::fs::read_to_string(path)?;
+            let policy_container: crate::policy::PolicyDefinitionContainer =
+                toml::from_str(&file_string)?;
+            RealizedPolicyContainer::try_from(policy_container)?
+        }
+        None => Default::default(),
+    };
 
-    let filters = api::create_filters(db).await;
+    let backend =
+        Arc::new(backend::DefaultBackend::new(args.db_connection_string, policy_container).await?);
+
+    let filters = api::create_filters(backend).await;
 
     let api_server = warp::serve(filters).run(([127, 0, 0, 1], 3030));
 
-    let admin_server = warp::path("metrics").map(api::metrics::metrics_endpoint)
+    let admin_server = warp::path("metrics")
+        .map(api::metrics::metrics_endpoint)
         .or(warp::path("status").map(|| "OK"))
         .with(warp::trace::request());
 

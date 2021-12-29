@@ -1,6 +1,6 @@
 use crate::database::{
     entity::{self, prelude::*},
-    reversion_queries::{models::RevisionParam, RevisionQueries},
+    revision_queries::{models::RevisionParam, RevisionQueries},
     DbResult, PostgresDatabase,
 };
 use async_trait::async_trait;
@@ -9,12 +9,17 @@ use std::collections::BTreeMap;
 use tracing::info;
 use tracing_attributes::instrument;
 
+/**
+ * RevisionLabelQueries is a collection of api calls against the database focused
+ * on revisions's and their labels. This was split out of the RevisionQueries trait because
+ * the trait was getting a little unwieldy to manage.
+ */
 #[async_trait]
 pub trait RevisionLabelQueries {
     async fn set_revision_labels(
         &self,
         revision_param: &RevisionParam<'_>,
-        labels: RevisionLabels,
+        labels: &BTreeMap<String, String>,
     ) -> DbResult<()>;
 
     async fn sql_set_revision_labels(
@@ -31,6 +36,11 @@ pub trait RevisionLabelQueries {
     async fn sql_get_revision_labels(
         &self,
         repo: &entity::repository_revision::Model,
+    ) -> DbResult<Vec<entity::repository_revision_label::Model>>;
+
+    async fn sql_get_revision_labels_by_revision_id(
+        &self,
+        revision_id: i64,
     ) -> DbResult<Vec<entity::repository_revision_label::Model>>;
 }
 
@@ -135,20 +145,32 @@ impl RevisionLabelQueries for PostgresDatabase {
     async fn set_revision_labels(
         &self,
         revision_param: &RevisionParam<'_>,
-        labels: RevisionLabels,
+        labels: &BTreeMap<String, String>,
     ) -> DbResult<()> {
         let revision = self.sql_get_revision(&revision_param).await?;
 
-        self.sql_set_revision_labels(revision.revision_id, &labels.labels)
+        self.sql_set_revision_labels(revision.revision_id, &labels)
             .await?;
         Ok(())
+    }
+
+    #[instrument(skip(self, revision_id))]
+    async fn sql_get_revision_labels_by_revision_id(
+        &self,
+        revision_id: i64,
+    ) -> DbResult<Vec<entity::repository_revision_label::Model>> {
+        let labels = RepositoryRevisionLabel::find()
+            .filter(entity::repository_revision_label::Column::RevisionId.eq(revision_id))
+            .all(&self.db)
+            .await?;
+        Ok(labels)
     }
 }
 
 #[cfg(test)]
 mod integ_test {
     use super::*;
-    use crate::database::{reversion_queries::models::CreateRevisionParam, DateTimeProvider};
+    use crate::database::{revision_queries::models::CreateRevisionParam, DateTimeProvider};
     use crate::test_utils::*;
     use serial_test::serial;
 
@@ -211,9 +233,12 @@ mod integ_test {
         assert_eq!(revision.labels.get("key").unwrap(), "value");
         assert_eq!(revision.labels.get("foo").unwrap(), "bar");
 
-        db.set_revision_labels(&param, vec![("fig", "value")].into())
-            .await
-            .unwrap();
+        db.set_revision_labels(
+            &param,
+            &BTreeMap::from_iter(vec![("fig".to_owned(), "value".to_owned())]),
+        )
+        .await
+        .unwrap();
 
         let revision = db.get_revision(&param).await.unwrap();
         assert_eq!(revision.revision_name, "1.2.3");

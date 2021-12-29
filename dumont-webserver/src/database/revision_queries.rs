@@ -2,7 +2,7 @@ use crate::backend::models::PaginationOptions;
 use crate::database::{
     entity::{self, prelude::*},
     repo_queries::{models::RepoParam, RepoQueries},
-    reversion_label_queries::RevisionLabelQueries,
+    revision_label_queries::RevisionLabelQueries,
     AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
 };
 use async_trait::async_trait;
@@ -10,6 +10,14 @@ use sea_orm::{entity::*, query::*};
 use tracing::info;
 use tracing_attributes::instrument;
 
+/**
+ * RevisionQueries is a collection of api calls against the database focused
+ * on the revision.
+ *
+ * In the DB, we call things revision, and at the API level it's called version. This
+ * is because revision is "more generic" than a version IMO, but version is
+ * better used in the engineering lexicon.
+ */
 #[async_trait]
 pub trait RevisionQueries {
     async fn create_revision(
@@ -248,14 +256,14 @@ impl RevisionQueries for PostgresDatabase {
 mod integ_test {
     use super::*;
     use crate::database::{
-        org_queries::*, reversion_label_queries::models::RevisionLabels, DateTimeProvider,
+        org_queries::*, revision_label_queries::models::RevisionLabels, DateTimeProvider,
     };
     use crate::test_utils::*;
     use serial_test::serial;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
-    async fn test_reversion_create() {
+    async fn test_revision_create() {
         let db = PostgresDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,

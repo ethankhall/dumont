@@ -37,6 +37,8 @@ sqlx = { version = "0.5", features = [ "postgres", "migrate" ] }
 lazy_static = "1.4.0"
 prometheus = "0.13.0"
 futures-util = "0.3.19"
+regex = "1"
+toml = "*"
 
 [dev-dependencies]
 sea-orm = { version = "0.4", features = [ "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls", "macros" ] }
