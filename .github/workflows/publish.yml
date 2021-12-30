@@ -19,7 +19,7 @@ jobs:
         VERSION=$(docker run --rm -v $(pwd):/target docker.pkg.github.com/ethankhall/crom/cli:latest get latest | sed 's/v//g')
         docker run --rm -v $(pwd):/target docker.pkg.github.com/ethankhall/crom/cli:latest write-version latest
         docker build . --file Dockerfile --tag dumont
-        docker run --rm dumont /app/bin/dumont --help
+        docker run --rm dumont /app/dumont --help
     - name: push to registry
       run: |
         set -e
