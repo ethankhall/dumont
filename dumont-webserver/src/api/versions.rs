@@ -100,6 +100,7 @@ pub fn create_version_api(
         .or(update_version(db.clone()))
         .or(delete_version(db.clone()))
         .or(list_versions(db.clone()))
+        .or(get_version(db.clone()))
 }
 
 fn create_version(
@@ -196,6 +197,28 @@ async fn list_versions_impl(
     let result = db.list_versions(&org, &repo, pagination.into()).await;
     let result: Result<Vec<GetVersion>, BackendError> =
         result.map(|version_list| version_list.versions.iter().map(GetVersion::from).collect());
+    wrap_body(result.map_err(ErrorStatusResponse::from))
+}
+
+fn get_version(
+    db: crate::Backend,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    info!("GET /api/org/{{org}}/repo/{{repo}}/version/{{version}}");
+    warp::path!("api" / "org" / String / "repo" / String / "version" / String)
+        .and(warp::get())
+        .and(with_db(db))
+        .and_then(get_version_impl)
+}
+
+#[instrument(name = "rest_version_get", skip(db))]
+async fn get_version_impl(
+    org: String,
+    repo: String,
+    version: String,
+    db: crate::Backend,
+) -> Result<impl Reply, Rejection> {
+    let result = db.get_version(&org, &repo, &version).await;
+    let result = result.map(GetVersion::from);
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 

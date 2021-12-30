@@ -45,7 +45,7 @@ fn create_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = R
         .and_then(create_org_impl)
 }
 
-#[instrument(name = "rest_create_org", skip(db))]
+#[instrument(name = "rest_org_create", skip(db))]
 async fn create_org_impl(
     org: CreateOrganization,
     db: crate::Backend,
@@ -63,7 +63,7 @@ fn delete_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = R
         .and_then(delete_org_impl)
 }
 
-#[instrument(name = "rest_delete_org", skip(db))]
+#[instrument(name = "rest_org_delete", skip(db))]
 async fn delete_org_impl(org_name: String, db: crate::Backend) -> Result<impl Reply, Rejection> {
     let result = db.delete_organization(&org_name).await;
     let result: Result<DeleteStatus, BackendError> = result.map(DeleteStatus::from);
@@ -79,7 +79,7 @@ fn list_orgs(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Re
         .and_then(list_orgs_impl)
 }
 
-#[instrument(name = "rest_list_org", skip(db))]
+#[instrument(name = "rest_org_list", skip(db))]
 async fn list_orgs_impl(
     pageination: ApiPagination,
     db: crate::Backend,
@@ -98,7 +98,7 @@ fn get_an_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = R
         .and_then(get_an_org_impl)
 }
 
-#[instrument(name = "rest_get_org", skip(db))]
+#[instrument(name = "rest_org_get", skip(db))]
 async fn get_an_org_impl(org_name: String, db: crate::Backend) -> Result<impl Reply, Rejection> {
     let result = db.get_organization(&org_name).await;
     let result: Result<GetOrganization, BackendError> =

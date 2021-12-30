@@ -236,6 +236,18 @@ impl DefaultBackend {
             .await?
             .into())
     }
+
+    #[instrument(skip(self))]
+    pub async fn get_version(
+        &self,
+        org_name: &str,
+        repo_name: &str,
+        version_name: &str,
+    ) -> Result<DataStoreRevision, BackendError> {
+        let param = RevisionParam::new(org_name, repo_name, version_name);
+        let revision = self.database.get_revision(&param).await?;
+        Ok(revision.into())
+    }
 }
 
 #[cfg(test)]
