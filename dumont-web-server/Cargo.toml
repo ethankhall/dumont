@@ -1,5 +1,5 @@
 [package]
-name = "dumont-bin"
+name = "dumont-web-server"
 version = "0.1.0"
 authors = ["Ethan Hall <ethan@hall.sh>"]
 edition = "2021"

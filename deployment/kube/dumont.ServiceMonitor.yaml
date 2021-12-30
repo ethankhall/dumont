@@ -1,0 +1,19 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dumont
+  namespace: prometheus
+  labels:
+    app: dumont
+    release: prometheus
+spec:
+  endpoints:
+  - path: /metrics
+    port: http-metrics
+  namespaceSelector:
+    matchNames:
+    - dumont
+  selector:
+    matchLabels:
+      app: dumont

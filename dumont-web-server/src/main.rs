@@ -89,7 +89,7 @@ pub struct Opts {
 #[derive(Subcommand, Debug)]
 pub enum MainOperation {
     /// Run the web server
-    #[clap(name = "serve")]
+    #[clap(name = "web-server")]
     RunWebServer(RunWebServerArgs),
 
     /// Run the DB Migration

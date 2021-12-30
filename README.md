@@ -18,7 +18,7 @@ bill.
 
 ## API Docs
 
-We have them! See them [docs/api.md](./docs/api.md)!
+We have them! See them at [docs/api.md](./docs/api.md)!
 
 ## Features
 

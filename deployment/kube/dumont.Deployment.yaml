@@ -1,0 +1,34 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dumont-deployment
+  namespace: dumont
+  labels:
+    app: dumont
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dumont
+  template:
+    metadata:
+      labels:
+        app: dumont
+        name: dumont
+    spec:
+      containers:
+      - name: dumont
+        image: ghcr.io/ethankhall/dumont/dumont
+        ports:
+          - containerPort: 3030
+          - containerPort: 3031
+            name: http-metrics
+        env:
+          - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+            value: http://otel-collector.metrics.svc.cluster.local:4317
+          - name: DATABASE_URL
+            value: postgresql://dumont:password@postgres:5432/dumont
+        command:
+          - /app/dumont
+          - web-server

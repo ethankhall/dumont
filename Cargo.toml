@@ -1,5 +1,5 @@
 [workspace]
 
 members = [
-    "dumont-webserver",
+    "dumont-web-server",
 ]

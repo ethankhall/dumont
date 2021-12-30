@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: dumont
+  labels:
+    app: postgres
+data:
+  POSTGRES_DB: dumont
+  POSTGRES_USER: dumont
+  POSTGRES_PASSWORD: password
