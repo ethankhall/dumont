@@ -84,7 +84,7 @@ async fn list_orgs_impl(
     pageination: ApiPagination,
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
-    let result = db.get_organizations(pageination.into()).await;
+    let result = db.list_organizations(pageination.into()).await;
     let result: Result<Vec<GetOrganization>, BackendError> =
         result.map(|orgs_list| orgs_list.orgs.iter().map(GetOrganization::from).collect());
     wrap_body(result.map_err(ErrorStatusResponse::from))

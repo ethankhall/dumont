@@ -132,7 +132,7 @@ async fn get_repos_impl(
     pagination: ApiPagination,
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
-    let result = db.get_repos(&org, pagination.into()).await;
+    let result = db.list_repos(&org, pagination.into()).await;
     let result: Result<Vec<GetRepository>, BackendError> =
         result.map(|repo_list| repo_list.repos.iter().map(GetRepository::from).collect());
     wrap_body(result.map_err(ErrorStatusResponse::from))
@@ -192,11 +192,7 @@ async fn update_repo_impl(
     update: UpdateRepository,
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
-    if let Err(err) = db.update_repo(&org, &repo, update.labels.labels).await {
-        return wrap_body(Err(ErrorStatusResponse::from(err)));
-    }
-
-    let result = db.get_repo(&org, &repo).await;
+    let result = db.update_repo(&org, &repo, update.labels.labels).await;
     let result: Result<GetRepository, BackendError> = result.map(GetRepository::from);
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }

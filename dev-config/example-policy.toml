@@ -1,0 +1,10 @@
+[[policy]]
+repository_pattern = ".*"
+name = "library"
+required_repo_labels = [
+  {name = "owners"}
+]
+required_version_labels = [
+  {name = "git_hash"},
+  {name = "release_state", one_of = ["pre-release", "released", "deprecated", "end-of-life"], default_value = "released"},
+]

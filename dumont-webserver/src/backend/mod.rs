@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 use crate::models::GenericLabels;
 use models::*;
 use thiserror::Error;
-use tracing::error;
+use tracing::{info, error};
+use tracing_attributes::instrument;
 
 use crate::database::prelude::*;
 use crate::policy::{PolicyError, RealizedPolicyContainer};
@@ -41,12 +42,15 @@ impl DefaultBackend {
         db_connection_string: String,
         policy_container: RealizedPolicyContainer,
     ) -> Result<Self, BackendError> {
+
+        info!("Policies Configured\n{}", toml::to_string_pretty(&policy_container).unwrap_or("Policy failed to render".to_owned()));
         Ok(Self {
             database: PostgresDatabase::new(db_connection_string).await?,
             policy_container,
         })
     }
 
+    #[instrument(skip(self))]
     pub async fn create_organization(
         &self,
         org_name: &str,
@@ -55,11 +59,13 @@ impl DefaultBackend {
         Ok(new_org.into())
     }
 
+    #[instrument(skip(self))]
     pub async fn delete_organization(&self, org_name: &str) -> Result<bool, BackendError> {
         Ok(self.database.delete_org(org_name).await?)
     }
 
-    pub async fn get_organizations(
+    #[instrument(skip(self, pagination))]
+    pub async fn list_organizations(
         &self,
         pagination: PaginationOptions,
     ) -> Result<DataStoreOrganizationList, BackendError> {
@@ -67,6 +73,7 @@ impl DefaultBackend {
         Ok(found_orgs.into())
     }
 
+    #[instrument(skip(self))]
     pub async fn get_organization(
         &self,
         org_name: &str,
@@ -75,6 +82,7 @@ impl DefaultBackend {
         Ok(new_org.into())
     }
 
+    #[instrument(skip(self, provided_labels))]
     pub async fn create_repo(
         &self,
         org_name: &str,
@@ -98,7 +106,8 @@ impl DefaultBackend {
         Ok(repo.into())
     }
 
-    pub async fn get_repos(
+    #[instrument(skip(self, pagination))]
+    pub async fn list_repos(
         &self,
         org_name: &str,
         pagination: PaginationOptions,
@@ -107,6 +116,7 @@ impl DefaultBackend {
         Ok(repos.into())
     }
 
+    #[instrument(skip(self))]
     pub async fn get_repo(
         &self,
         org_name: &str,
@@ -119,6 +129,7 @@ impl DefaultBackend {
         Ok(repo.into())
     }
 
+    #[instrument(skip(self))]
     pub async fn delete_repo(&self, org_name: &str, repo_name: &str) -> Result<bool, BackendError> {
         Ok(self
             .database
@@ -126,6 +137,7 @@ impl DefaultBackend {
             .await?)
     }
 
+    #[instrument(skip(self, provided_labels))]
     pub async fn update_repo(
         &self,
         org_name: &str,
@@ -146,6 +158,7 @@ impl DefaultBackend {
         Ok(repo.into())
     }
 
+    #[instrument(skip(self, provided_labels))]
     pub async fn create_version(
         &self,
         org_name: &str,
@@ -180,6 +193,7 @@ impl DefaultBackend {
         Ok(revision.into())
     }
 
+    #[instrument(skip(self, provided_labels))]
     pub async fn update_version(
         &self,
         org_name: &str,
@@ -198,6 +212,7 @@ impl DefaultBackend {
         Ok(revision.into())
     }
 
+    #[instrument(skip(self))]
     pub async fn delete_version(
         &self,
         org_name: &str,
@@ -208,6 +223,7 @@ impl DefaultBackend {
         Ok(self.database.delete_revision(&param).await?)
     }
 
+    #[instrument(skip(self, pagination))]
     pub async fn list_versions(
         &self,
         org_name: &str,
@@ -337,7 +353,7 @@ mod integ_test {
                     BTreeMap::from_iter(vec![("git".to_owned(), "123".to_owned())])
                 )
                 .await
-                .unwrap_err().to_string(), "Policy `test` required that label git_sha be set, however it was not and no default was specified.");
+                .unwrap_err().to_string(), "Policy `test` required that label `git_sha` be set, however it was not and no default was specified.");
 
         assert!(backend
             .create_version(
@@ -391,6 +407,6 @@ mod integ_test {
                     BTreeMap::from_iter(vec![("git".to_owned(), "123".to_owned())])
                 )
                 .await
-                .unwrap_err().to_string(), "Policy `test` required that label git_sha be set, however it was not and no default was specified.");
+                .unwrap_err().to_string(), "Policy `test` required that label `git_sha` be set, however it was not and no default was specified.");
     }
 }
