@@ -16,6 +16,10 @@ he notices that `clu` gave an error that he thought he fixed. Instead of digging
 asked `dumont` what version was deployed, realized the mistake and send `1.7.1` out to fix the phone
 bill.
 
+## API Docs
+
+We have them! See them [docs/api.md](./docs/api.md)!
+
 ## Features
 
 - Normal github style organization. (org/repo/version)
@@ -28,5 +32,8 @@ bill.
 
 - Authentication. Authentication is hard, and best done by another application like nginx. See [this blog](https://fardog.io/blog/2017/12/30/client-side-certificate-authentication-with-nginx/) post for how to do mutual auth (x509) with nginx.
 - Authorization. This is a feature that could be added in the future, but is currently missing.
+- Dependency management. ANGTFT, you would use `dumont` inside other applications to determine if
+  versions are being used that shouldn't be.
+- Search. It's hard and coming soon hopefully!
 
   [1]: https://tron.fandom.com/wiki/Dumont
