@@ -18,8 +18,7 @@ ADD dumont-webserver /dumont/dumont-webserver
 
 # this build step will cache your dependencies
 RUN cargo build --release
-RUN cargo test --release
-RUN mv target/release/dumont-bin /app/dumont-webserver
+RUN mkdir /app && mv target/release/dumont-bin /app/dumont-webserver
 RUN /app/dumont-webserver --help
 
 # verify linked deps
