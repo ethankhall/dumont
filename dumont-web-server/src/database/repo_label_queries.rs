@@ -15,8 +15,8 @@ pub mod models {
 
     pub type RepoLabels = crate::models::GenericLabels;
 
-    impl From<&Vec<entity::repository_label::Model>> for RepoLabels {
-        fn from(source: &Vec<entity::repository_label::Model>) -> Self {
+    impl From<&[entity::repository_label::Model]> for RepoLabels {
+        fn from(source: &[entity::repository_label::Model]) -> Self {
             let mut labels: BTreeMap<String, String> = Default::default();
             for value in source.iter() {
                 labels.insert(value.label_name.to_string(), value.label_value.to_string());
@@ -26,9 +26,16 @@ pub mod models {
         }
     }
 
+
+    impl From<&Vec<entity::repository_label::Model>> for RepoLabels {
+        fn from(source: &Vec<entity::repository_label::Model>) -> Self {
+            source.as_slice().into()
+        }
+    }
+
     impl From<Vec<entity::repository_label::Model>> for RepoLabels {
         fn from(source: Vec<entity::repository_label::Model>) -> Self {
-            (&source).into()
+            source.as_slice().into()
         }
     }
 }
@@ -72,7 +79,7 @@ impl RepoLabelQueries for PostgresDatabase {
     #[instrument(skip(self))]
     async fn get_repo_labels(&self, repo_param: &RepoParam<'_>) -> DbResult<RepoLabels> {
         let repo = self
-            .sql_get_repo(&repo_param.org_name, &repo_param.repo_name)
+            .sql_get_repo(repo_param.org_name, repo_param.repo_name)
             .await?;
 
         let labels = self.sql_get_repo_labels(&repo).await?;
@@ -86,7 +93,7 @@ impl RepoLabelQueries for PostgresDatabase {
         labels: BTreeMap<String, String>,
     ) -> DbResult<()> {
         let repo = self
-            .sql_get_repo(&repo_param.org_name, &repo_param.repo_name)
+            .sql_get_repo(repo_param.org_name, repo_param.repo_name)
             .await?;
 
         self.sql_set_repo_labels(repo.repo_id, &labels).await

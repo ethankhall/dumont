@@ -34,7 +34,7 @@ pub mod models {
     use std::collections::BTreeMap;
     use std::ops::Deref;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct GenericLabels {
         #[serde(default)]
         pub labels: BTreeMap<String, String>,
@@ -61,14 +61,6 @@ pub mod models {
         type Target = BTreeMap<String, String>;
         fn deref(&self) -> &Self::Target {
             &self.labels
-        }
-    }
-
-    impl Default for GenericLabels {
-        fn default() -> Self {
-            Self {
-                labels: Default::default(),
-            }
         }
     }
 }

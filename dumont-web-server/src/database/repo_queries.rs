@@ -33,7 +33,7 @@ pub mod models {
         pub fn from(
             org: &entity::organization::Model,
             repo: &entity::repository::Model,
-            labels: &Vec<entity::repository_label::Model>,
+            labels: &[entity::repository_label::Model],
         ) -> Self {
             Self {
                 org_id: org.org_id,
@@ -79,17 +79,9 @@ pub mod models {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     pub struct CreateRepoParam {
         pub labels: RepoLabels,
-    }
-
-    impl Default for CreateRepoParam {
-        fn default() -> Self {
-            Self {
-                labels: Default::default(),
-            }
-        }
     }
 }
 

@@ -146,7 +146,7 @@ impl OrganizationQueries for PostgresDatabase {
         use entity::organization::Column;
 
         let resp = Organization::find()
-            .filter(Column::OrgName.eq(org_name.clone()))
+            .filter(Column::OrgName.eq(org_name))
             .one(&self.db)
             .await?;
 

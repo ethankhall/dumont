@@ -31,18 +31,10 @@ pub enum PolicyError {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PolicyDefinitionContainer {
     #[serde(rename = "policy", default)]
     policies: Vec<PolicyDefinition>,
-}
-
-impl Default for PolicyDefinitionContainer {
-    fn default() -> Self {
-        Self {
-            policies: Default::default(),
-        }
-    }
 }
 
 #[test]
@@ -159,7 +151,7 @@ impl RequiredLabel {
         if !self.one_of.is_empty() && !self.one_of.contains(&value) {
             return Err(PolicyError::LabelNotInSet {
                 policy_name: policy_name.to_owned(),
-                label_name: label_name.clone(),
+                label_name: label_name,
                 value,
             });
         }
@@ -204,17 +196,9 @@ fn test_will_set_default_label() {
     assert_eq!(value.get("test"), Some(&"true".to_owned()));
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 pub struct RealizedPolicyContainer {
     pub policies: Vec<RealizedPolicy>,
-}
-
-impl Default for RealizedPolicyContainer {
-    fn default() -> Self {
-        Self {
-            policies: Default::default(),
-        }
-    }
 }
 
 impl RealizedPolicyContainer {
@@ -293,14 +277,14 @@ impl RealizedPolicy {
             name: name.to_owned(),
             repository_pattern,
             repository_regex: formatted_pattern,
-            required_repo_labels: required_repo_labels.clone(),
-            required_version_labels: required_version_labels.clone(),
+            required_repo_labels: required_repo_labels,
+            required_version_labels: required_version_labels,
         })
     }
 
     fn validate_only_one_label(
         policy_name: &str,
-        labels: &Vec<RequiredLabel>,
+        labels: &[RequiredLabel],
     ) -> Result<(), PolicyError> {
         let mut label_names = BTreeSet::default();
         for label in labels {

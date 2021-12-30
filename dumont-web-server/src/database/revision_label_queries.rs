@@ -95,7 +95,7 @@ impl RevisionLabelQueries for PostgresDatabase {
         &self,
         revision_param: &RevisionParam<'_>,
     ) -> DbResult<RevisionLabels> {
-        let revision = self.sql_get_revision(&revision_param).await?;
+        let revision = self.sql_get_revision(revision_param).await?;
         let labels = self.sql_get_revision_labels(&revision).await?;
         Ok(labels.into())
     }
@@ -147,9 +147,9 @@ impl RevisionLabelQueries for PostgresDatabase {
         revision_param: &RevisionParam<'_>,
         labels: &BTreeMap<String, String>,
     ) -> DbResult<()> {
-        let revision = self.sql_get_revision(&revision_param).await?;
+        let revision = self.sql_get_revision(revision_param).await?;
 
-        self.sql_set_revision_labels(revision.revision_id, &labels)
+        self.sql_set_revision_labels(revision.revision_id, labels)
             .await?;
         Ok(())
     }

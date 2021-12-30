@@ -76,7 +76,7 @@ impl From<crate::backend::models::DataStoreRepository> for GetRepository {
         Self {
             org: model.org_name.clone(),
             repo: model.repo_name.clone(),
-            labels: model.labels.clone(),
+            labels: model.labels,
         }
     }
 }
@@ -94,7 +94,7 @@ pub fn create_repo_api(
         .or(get_repos(db.clone()))
         .or(get_repo(db.clone()))
         .or(delete_repo(db.clone()))
-        .or(update_repo(db.clone()))
+        .or(update_repo(db))
 }
 
 fn create_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
