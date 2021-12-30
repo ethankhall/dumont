@@ -100,7 +100,7 @@ pub fn create_version_api(
         .or(update_version(db.clone()))
         .or(delete_version(db.clone()))
         .or(list_versions(db.clone()))
-        .or(get_version(db.clone()))
+        .or(get_version(db))
 }
 
 fn create_version(
@@ -200,9 +200,7 @@ async fn list_versions_impl(
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
-fn get_version(
-    db: crate::Backend,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn get_version(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo/{{repo}}/version/{{version}}");
     warp::path!("api" / "org" / String / "repo" / String / "version" / String)
         .and(warp::get())

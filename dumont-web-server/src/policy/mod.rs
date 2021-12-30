@@ -1,10 +1,10 @@
+use derivative::Derivative;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryFrom;
 use thiserror::Error;
 use tracing_attributes::instrument;
-use derivative::Derivative;
 
 #[derive(Error, Debug)]
 pub enum PolicyError {
@@ -31,18 +31,10 @@ pub enum PolicyError {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PolicyDefinitionContainer {
     #[serde(rename = "policy", default)]
     policies: Vec<PolicyDefinition>,
-}
-
-impl Default for PolicyDefinitionContainer {
-    fn default() -> Self {
-        Self {
-            policies: Default::default(),
-        }
-    }
 }
 
 #[test]
@@ -74,15 +66,44 @@ required_version_labels = [
 
     let parsed: PolicyDefinitionContainer = toml::from_str(input).unwrap();
     assert_eq!(parsed.policies[0].name, "service");
-    assert_eq!(parsed.policies[0].required_repo_labels[0], RequiredLabel::new("owners", Vec::new(), None));
-    assert_eq!(parsed.policies[0].required_version_labels[0], RequiredLabel::new("git_hash", Vec::new(), None));
-    assert_eq!(parsed.policies[0].required_version_labels[1], RequiredLabel::new("image_name", Vec::new(), None));
-    assert_eq!(parsed.policies[0].required_version_labels[2], RequiredLabel::new("release_state", vec!["built", "canary", "deployed", "replaced"], None));
+    assert_eq!(
+        parsed.policies[0].required_repo_labels[0],
+        RequiredLabel::new("owners", Vec::new(), None)
+    );
+    assert_eq!(
+        parsed.policies[0].required_version_labels[0],
+        RequiredLabel::new("git_hash", Vec::new(), None)
+    );
+    assert_eq!(
+        parsed.policies[0].required_version_labels[1],
+        RequiredLabel::new("image_name", Vec::new(), None)
+    );
+    assert_eq!(
+        parsed.policies[0].required_version_labels[2],
+        RequiredLabel::new(
+            "release_state",
+            vec!["built", "canary", "deployed", "replaced"],
+            None
+        )
+    );
 
     assert_eq!(parsed.policies[1].name, "library");
-    assert_eq!(parsed.policies[1].required_repo_labels[0], RequiredLabel::new("owners", Vec::new(), None));
-    assert_eq!(parsed.policies[1].required_version_labels[0], RequiredLabel::new("git_hash", Vec::new(), None));
-    assert_eq!(parsed.policies[1].required_version_labels[1], RequiredLabel::new("release_state", vec!["pre-release", "released", "deprecated", "end-of-life"], Some("released")));
+    assert_eq!(
+        parsed.policies[1].required_repo_labels[0],
+        RequiredLabel::new("owners", Vec::new(), None)
+    );
+    assert_eq!(
+        parsed.policies[1].required_version_labels[0],
+        RequiredLabel::new("git_hash", Vec::new(), None)
+    );
+    assert_eq!(
+        parsed.policies[1].required_version_labels[1],
+        RequiredLabel::new(
+            "release_state",
+            vec!["pre-release", "released", "deprecated", "end-of-life"],
+            Some("released")
+        )
+    );
     let realized_container = RealizedPolicyContainer::try_from(parsed.clone()).unwrap();
 
     assert_eq!(parsed.policies.len(), realized_container.policies.len())
@@ -104,7 +125,10 @@ required_version_labels = [
 
     let parsed: Result<PolicyDefinitionContainer, toml::de::Error> = toml::from_str(input);
     assert!(parsed.is_err());
-    assert_eq!(parsed.unwrap_err().to_string(), r#"unknown field `default`, expected one of `name`, `one_of`, `default_value` for key `policy.required_version_labels` at line 9 column 3"#);
+    assert_eq!(
+        parsed.unwrap_err().to_string(),
+        r#"unknown field `default`, expected one of `name`, `one_of`, `default_value` for key `policy.required_version_labels` at line 9 column 3"#
+    );
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,7 +183,7 @@ impl RequiredLabel {
         if !self.one_of.is_empty() && !self.one_of.contains(&value) {
             return Err(PolicyError::LabelNotInSet {
                 policy_name: policy_name.to_owned(),
-                label_name: label_name.clone(),
+                label_name,
                 value,
             });
         }
@@ -204,17 +228,9 @@ fn test_will_set_default_label() {
     assert_eq!(value.get("test"), Some(&"true".to_owned()));
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 pub struct RealizedPolicyContainer {
     pub policies: Vec<RealizedPolicy>,
-}
-
-impl Default for RealizedPolicyContainer {
-    fn default() -> Self {
-        Self {
-            policies: Default::default(),
-        }
-    }
 }
 
 impl RealizedPolicyContainer {
@@ -293,14 +309,14 @@ impl RealizedPolicy {
             name: name.to_owned(),
             repository_pattern,
             repository_regex: formatted_pattern,
-            required_repo_labels: required_repo_labels.clone(),
-            required_version_labels: required_version_labels.clone(),
+            required_repo_labels,
+            required_version_labels,
         })
     }
 
     fn validate_only_one_label(
         policy_name: &str,
-        labels: &Vec<RequiredLabel>,
+        labels: &[RequiredLabel],
     ) -> Result<(), PolicyError> {
         let mut label_names = BTreeSet::default();
         for label in labels {

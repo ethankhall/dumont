@@ -112,7 +112,7 @@ impl RevisionQueries for PostgresDatabase {
         let repo_name = revision_param.repo_name.to_string();
         let org_name = revision_param.org_name.to_string();
 
-        if let Some(found_revision) = self.sql_get_raw_revision(&revision_param).await? {
+        if let Some(found_revision) = self.sql_get_raw_revision(revision_param).await? {
             info!(
                 revision = tracing::field::debug(&found_revision),
                 "Found exiting revision for {:?}.", revision_param
@@ -143,12 +143,12 @@ impl RevisionQueries for PostgresDatabase {
         )
         .await?;
 
-        self.get_revision(&revision_param).await
+        self.get_revision(revision_param).await
     }
 
     #[instrument(skip(self))]
     async fn get_revision(&self, revision_param: &RevisionParam<'_>) -> DbResult<DbRevisionModel> {
-        let revision = self.sql_get_revision(&revision_param).await?;
+        let revision = self.sql_get_revision(revision_param).await?;
         let labels = self.sql_get_revision_labels(&revision).await?;
 
         Ok(DbRevisionModel::from(revision, labels))
@@ -156,7 +156,7 @@ impl RevisionQueries for PostgresDatabase {
 
     #[instrument(skip(self))]
     async fn delete_revision(&self, revision_param: &RevisionParam<'_>) -> DbResult<bool> {
-        let revision = self.sql_get_raw_revision(&revision_param).await?;
+        let revision = self.sql_get_raw_revision(revision_param).await?;
 
         let revision = match revision {
             Some(revision) => revision,
@@ -207,12 +207,9 @@ impl RevisionQueries for PostgresDatabase {
         revision_param: &RevisionParam<'_>,
     ) -> DbResult<Option<entity::repository_revision::Model>> {
         let condition = Condition::all()
-            .add(entity::organization::Column::OrgName.eq(revision_param.org_name.clone()))
-            .add(entity::repository::Column::RepoName.eq(revision_param.repo_name.clone()))
-            .add(
-                entity::repository_revision::Column::RevisionName
-                    .eq(revision_param.revision.clone()),
-            );
+            .add(entity::organization::Column::OrgName.eq(revision_param.org_name))
+            .add(entity::repository::Column::RepoName.eq(revision_param.repo_name))
+            .add(entity::repository_revision::Column::RevisionName.eq(revision_param.revision));
 
         let revision = RepositoryRevision::find()
             .filter(condition)
@@ -235,7 +232,7 @@ impl RevisionQueries for PostgresDatabase {
         &self,
         revision_param: &RevisionParam<'_>,
     ) -> DbResult<entity::repository_revision::Model> {
-        let revision = self.sql_get_raw_revision(&revision_param).await?;
+        let revision = self.sql_get_raw_revision(revision_param).await?;
 
         match revision {
             None => {

@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use crate::models::GenericLabels;
 use models::*;
 use thiserror::Error;
-use tracing::{info, error};
+use tracing::{error, info};
 use tracing_attributes::instrument;
 
 use crate::database::prelude::*;
@@ -42,8 +42,11 @@ impl DefaultBackend {
         db_connection_string: String,
         policy_container: RealizedPolicyContainer,
     ) -> Result<Self, BackendError> {
-
-        info!("Policies Configured\n{}", toml::to_string_pretty(&policy_container).unwrap_or("Policy failed to render".to_owned()));
+        info!(
+            "Policies Configured\n{}",
+            toml::to_string_pretty(&policy_container)
+                .unwrap_or_else(|_| "Policy failed to render".to_owned())
+        );
         Ok(Self {
             database: PostgresDatabase::new(db_connection_string).await?,
             policy_container,
@@ -112,7 +115,7 @@ impl DefaultBackend {
         org_name: &str,
         pagination: PaginationOptions,
     ) -> Result<DataStoreRepositoryList, BackendError> {
-        let repos = self.database.list_repo(&org_name, pagination).await?;
+        let repos = self.database.list_repo(org_name, pagination).await?;
         Ok(repos.into())
     }
 

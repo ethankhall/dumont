@@ -30,7 +30,7 @@ impl From<crate::database::prelude::DbOrganizationModel> for DataStoreOrganizati
 impl From<&crate::database::prelude::DbOrganizationModel> for DataStoreOrganization {
     fn from(source: &crate::database::prelude::DbOrganizationModel) -> Self {
         Self {
-            id: source.org_id.clone(),
+            id: source.org_id,
             name: source.org_name.clone(),
         }
     }

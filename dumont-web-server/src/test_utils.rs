@@ -6,9 +6,7 @@ use std::sync::Arc;
 pub async fn make_db() -> (PostgresDatabase, crate::Backend) {
     setup_schema().await.unwrap();
     let db = PostgresDatabase {
-        db: Database::connect("postgresql://postgres:password@127.0.0.1:5432/postgres_test")
-            .await
-            .unwrap(),
+        db: Database::connect(&get_db_url_with_test_db()).await.unwrap(),
         date_time_provider: DateTimeProvider::RealDateTime,
     };
     let backend = Arc::new(crate::backend::DefaultBackend {
@@ -16,9 +14,7 @@ pub async fn make_db() -> (PostgresDatabase, crate::Backend) {
         policy_container: Default::default(),
     });
     let db = PostgresDatabase {
-        db: Database::connect("postgresql://postgres:password@127.0.0.1:5432/postgres_test")
-            .await
-            .unwrap(),
+        db: Database::connect(&get_db_url_with_test_db()).await.unwrap(),
         date_time_provider: DateTimeProvider::RealDateTime,
     };
     (db, backend)
@@ -27,7 +23,7 @@ pub async fn make_db() -> (PostgresDatabase, crate::Backend) {
 pub async fn setup_schema() -> DbResult<DatabaseConnection> {
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect("postgresql://postgres:password@127.0.0.1:5432/")
+        .connect(&get_db_host_url())
         .await?;
 
     let mut conn = pool.acquire().await?;
@@ -42,12 +38,21 @@ pub async fn setup_schema() -> DbResult<DatabaseConnection> {
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect("postgresql://postgres:password@127.0.0.1:5432/postgres_test")
+        .connect(&get_db_url_with_test_db())
         .await?;
 
     sqlx::migrate!("./migrations").run(&pool).await?;
 
-    Ok(Database::connect("postgresql://postgres:password@127.0.0.1:5432/postgres_test").await?)
+    Ok(Database::connect(&get_db_url_with_test_db()).await?)
+}
+
+fn get_db_host_url() -> String {
+    let host = std::env::var("TEST_DB_HOST").unwrap_or("127.0.0.1".to_owned());
+    format!("postgresql://postgres:password@{}:5432", host)
+}
+
+fn get_db_url_with_test_db() -> String {
+    format!("{}/postgres_test", get_db_host_url())
 }
 
 #[allow(dead_code)]

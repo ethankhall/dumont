@@ -121,7 +121,7 @@ mod models {
     impl ErrorStatusResponse {
         pub fn from_error_message(code: StatusCode, error: String) -> Self {
             Self {
-                code: code,
+                code,
                 error: Some(vec![error]),
             }
         }
@@ -179,7 +179,7 @@ mod filters {
     pub fn api(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         super::orgs::create_org_api(db.clone())
             .or(super::repos::create_repo_api(db.clone()))
-            .or(super::versions::create_version_api(db.clone()))
+            .or(super::versions::create_version_api(db))
             .with(warp::log::custom(super::metrics::track_status))
     }
 }
@@ -196,14 +196,14 @@ mod canned_response {
     impl From<Rejection> for ErrorStatusResponse {
         fn from(source: Rejection) -> Self {
             if source.is_not_found() {
-                return ErrorStatusResponse::from_error_message(
+                ErrorStatusResponse::from_error_message(
                     StatusCode::NOT_FOUND,
                     "NOT_FOUND".to_owned(),
-                );
+                )
             } else if let Some(resp) = source.find::<ErrorStatusResponse>() {
-                return resp.into();
+                resp.into()
             } else if let Some(backend_error) = source.find::<BackendError>() {
-                return backend_error.into();
+                backend_error.into()
             } else if let Some(e) = source.find::<warp::filters::body::BodyDeserializeError>() {
                 let message_body: String = match e.source() {
                     Some(cause) => cause.to_string(),
@@ -228,7 +228,7 @@ mod canned_response {
     impl From<&ErrorStatusResponse> for ErrorStatusResponse {
         fn from(source: &ErrorStatusResponse) -> Self {
             Self {
-                code: source.code.clone(),
+                code: source.code,
                 error: source.error.clone(),
             }
         }

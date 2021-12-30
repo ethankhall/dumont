@@ -33,7 +33,7 @@ pub fn create_org_api(
     create_org(db.clone())
         .or(delete_org(db.clone()))
         .or(list_orgs(db.clone()))
-        .or(get_an_org(db.clone()))
+        .or(get_an_org(db))
 }
 
 fn create_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -101,8 +101,7 @@ fn get_an_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = R
 #[instrument(name = "rest_org_get", skip(db))]
 async fn get_an_org_impl(org_name: String, db: crate::Backend) -> Result<impl Reply, Rejection> {
     let result = db.get_organization(&org_name).await;
-    let result: Result<GetOrganization, BackendError> =
-        result.map(|org| GetOrganization::from(org));
+    let result: Result<GetOrganization, BackendError> = result.map(GetOrganization::from);
     wrap_body(result.map_err(ErrorStatusResponse::from))
 }
 
