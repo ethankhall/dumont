@@ -26,7 +26,6 @@ pub mod models {
         }
     }
 
-
     impl From<&Vec<entity::repository_label::Model>> for RepoLabels {
         fn from(source: &Vec<entity::repository_label::Model>) -> Self {
             source.as_slice().into()
