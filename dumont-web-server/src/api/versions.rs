@@ -100,7 +100,7 @@ pub fn create_version_api(
         .or(update_version(db.clone()))
         .or(delete_version(db.clone()))
         .or(list_versions(db.clone()))
-        .or(get_version(db.clone()))
+        .or(get_version(db))
 }
 
 fn create_version(

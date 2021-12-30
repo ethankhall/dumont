@@ -209,10 +209,7 @@ impl RevisionQueries for PostgresDatabase {
         let condition = Condition::all()
             .add(entity::organization::Column::OrgName.eq(revision_param.org_name))
             .add(entity::repository::Column::RepoName.eq(revision_param.repo_name))
-            .add(
-                entity::repository_revision::Column::RevisionName
-                    .eq(revision_param.revision.clone()),
-            );
+            .add(entity::repository_revision::Column::RevisionName.eq(revision_param.revision));
 
         let revision = RepositoryRevision::find()
             .filter(condition)

@@ -183,7 +183,7 @@ impl RequiredLabel {
         if !self.one_of.is_empty() && !self.one_of.contains(&value) {
             return Err(PolicyError::LabelNotInSet {
                 policy_name: policy_name.to_owned(),
-                label_name: label_name,
+                label_name,
                 value,
             });
         }
@@ -309,8 +309,8 @@ impl RealizedPolicy {
             name: name.to_owned(),
             repository_pattern,
             repository_regex: formatted_pattern,
-            required_repo_labels: required_repo_labels,
-            required_version_labels: required_version_labels,
+            required_repo_labels,
+            required_version_labels,
         })
     }
 
