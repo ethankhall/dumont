@@ -64,7 +64,9 @@ pub trait OrganizationQueries {
     ) -> DbResult<Option<entity::organization::Model>>;
     async fn sql_get_org(&self, org_name: &str) -> DbResult<entity::organization::Model>;
     async fn find_org(&self, org_name: &str) -> DbResult<DbOrganizationModel>;
-    async fn list_orgs(&self, pagination: PaginationOptions) -> DbResult<Vec<DbOrganizationModel>>;
+    async fn list_orgs(&self, pagination: &PaginationOptions)
+        -> DbResult<Vec<DbOrganizationModel>>;
+    async fn count_orgs(&self) -> DbResult<usize>;
     async fn delete_org(&self, org_name: &str) -> DbResult<bool>;
 }
 
@@ -117,6 +119,13 @@ impl OrganizationQueries for PostgresDatabase {
     }
 
     #[instrument(skip(self))]
+    async fn count_orgs(&self) -> DbResult<usize> {
+        let resp = Organization::find().count(&self.db).await?;
+
+        Ok(resp)
+    }
+
+    #[instrument(skip(self))]
     async fn find_org(&self, org_name: &str) -> DbResult<DbOrganizationModel> {
         let org_name = org_name.to_string();
 
@@ -126,7 +135,10 @@ impl OrganizationQueries for PostgresDatabase {
     }
 
     #[instrument(skip(self))]
-    async fn list_orgs(&self, pagination: PaginationOptions) -> DbResult<Vec<DbOrganizationModel>> {
+    async fn list_orgs(
+        &self,
+        pagination: &PaginationOptions,
+    ) -> DbResult<Vec<DbOrganizationModel>> {
         use entity::organization::Column;
 
         let resp = Organization::find()
@@ -208,14 +220,14 @@ mod integ_test {
         let new_org = db.create_org("bar").await.unwrap();
         assert_eq!(new_org.org_name, "bar");
 
-        let listed_orgs = db.list_orgs(PaginationOptions::new(0, 50)).await.unwrap();
+        let listed_orgs = db.list_orgs(&PaginationOptions::new(0, 50)).await.unwrap();
         assert_eq!(listed_orgs.len(), 2);
         assert_eq!(listed_orgs[0].org_name, "foo");
         assert_eq!(listed_orgs[1].org_name, "bar");
 
         // Get from page that doesn't exist
         assert_eq!(
-            db.list_orgs(PaginationOptions::new(1, 50))
+            db.list_orgs(&PaginationOptions::new(1, 50))
                 .await
                 .unwrap()
                 .len(),
@@ -235,21 +247,21 @@ mod integ_test {
             db.create_org(&format!("org-{}", i)).await.unwrap();
         }
 
-        let found_orgs = db.list_orgs(PaginationOptions::new(0, 50)).await.unwrap();
+        let found_orgs = db.list_orgs(&PaginationOptions::new(0, 50)).await.unwrap();
         assert_eq!(found_orgs.len(), 50);
 
         for i in 0..50 {
             assert_eq!(found_orgs[i].org_name, format!("org-{}", i));
         }
 
-        let found_orgs = db.list_orgs(PaginationOptions::new(1, 50)).await.unwrap();
+        let found_orgs = db.list_orgs(&PaginationOptions::new(1, 50)).await.unwrap();
         assert_eq!(found_orgs.len(), 50);
 
         for i in 0..50 {
             assert_eq!(found_orgs[i].org_name, format!("org-{}", i + 50));
         }
 
-        let found_orgs = db.list_orgs(PaginationOptions::new(2, 50)).await.unwrap();
+        let found_orgs = db.list_orgs(&PaginationOptions::new(2, 50)).await.unwrap();
         assert_eq!(found_orgs.len(), 0);
     }
 }

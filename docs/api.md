@@ -15,6 +15,10 @@ In general the API response follows the following scheme.
     "status": {
         "code": 200,
         "errors": []
+    },
+    "page": {
+        "more": false,
+        "total": 100
     }
 }
 ```
@@ -23,6 +27,9 @@ The field `.status.code` will also the HTTP response code, but it's often easier
 the filed in JSON when writing scripts, so it's included.
 The field `.data` may be absent, if there is no data to return. This only ever happens when there is an error.
 The field `.status.errors` may be absent, in the case there are no errors.
+The field `.page` may be absent, if the response is only a single object.
+The field `.page.more` declares if there are more pages to fetch.
+The field `.page.total` declares the total number of objects avaliable.
 
 ## Organization
 ### Create Organization

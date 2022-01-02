@@ -1,5 +1,4 @@
 use super::prelude::*;
-use crate::backend::BackendError;
 use tracing::info;
 use tracing_attributes::instrument;
 use warp::{Filter, Rejection, Reply};
@@ -91,7 +90,7 @@ pub fn create_repo_api(
     db: crate::Backend,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     create_repo(db.clone())
-        .or(get_repos(db.clone()))
+        .or(list_repos(db.clone()))
         .or(get_repo(db.clone()))
         .or(delete_repo(db.clone()))
         .or(update_repo(db))
@@ -113,29 +112,42 @@ async fn create_repo_impl(
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.create_repo(&org, &repo.repo, repo.labels.labels).await;
-    let result = result.map(GetRepository::from);
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(GetRepository::from)
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
-fn get_repos(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn list_repos(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo");
     warp::path!("api" / "org" / String / "repo")
         .and(warp::get())
         .and(warp::query::<ApiPagination>())
         .and(with_db(db))
-        .and_then(get_repos_impl)
+        .and_then(list_repos_impl)
 }
 
 #[instrument(name = "rest_org_list", skip(db))]
-async fn get_repos_impl(
+async fn list_repos_impl(
     org: String,
     pagination: ApiPagination,
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.list_repos(&org, pagination.into()).await;
-    let result: Result<Vec<GetRepository>, BackendError> =
-        result.map(|repo_list| repo_list.repos.iter().map(GetRepository::from).collect());
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result: Result<PaginatedWrapperResponse<Vec<GetRepository>>, ErrorStatusResponse> = result
+        .map(|repo_list| {
+            (
+                repo_list.repos.iter().map(GetRepository::from).collect(),
+                repo_list.total_count,
+                repo_list.has_more,
+            )
+        })
+        .map(|(body, total_count, has_more)| {
+            PaginatedWrapperResponse::with_page(body, total_count, has_more)
+        })
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 fn get_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -153,8 +165,11 @@ async fn get_repo_impl(
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.get_repo(&org, &repo).await;
-    let result: Result<GetRepository, BackendError> = result.map(GetRepository::from);
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(GetRepository::from)
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 fn delete_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -172,8 +187,11 @@ async fn delete_repo_impl(
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.delete_repo(&org, &repo).await;
-    let result: Result<DeleteStatus, BackendError> = result.map(DeleteStatus::from);
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(DeleteStatus::from)
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 fn update_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -193,8 +211,11 @@ async fn update_repo_impl(
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.update_repo(&org, &repo, update.labels.labels).await;
-    let result: Result<GetRepository, BackendError> = result.map(GetRepository::from);
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(GetRepository::from)
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 #[cfg(test)]
@@ -236,6 +257,52 @@ mod integ_test {
                     "scm_url": "https://github.com/example/example-repo-1"
                 }
             },
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[serial]
+    async fn test_list_repos() {
+        let (backend, db) = make_db().await;
+        let filter =
+            create_repo_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+
+        let mut create_repo = Vec::new();
+        let mut api_repo = Vec::new();
+        for i in 0..100 {
+            create_repo.push(format!("example-repo-{}", i));
+            api_repo
+                .push(object! {"org":"example","repo":format!("example-repo-{}", i),"labels":{}});
+        }
+
+        create_org_and_repos(&backend, "example", create_repo)
+            .await
+            .unwrap();
+
+        let response = request()
+            .path("/api/org/example/repo?page=0&size=25")
+            .method("GET")
+            .reply(&filter)
+            .await;
+
+        assert_200_list_response(
+            response,
+            json::JsonValue::Array(api_repo[0..25].to_vec()),
+            100,
+            true,
+        );
+
+        let response = request()
+            .path("/api/org/example/repo?page=1&size=50")
+            .method("GET")
+            .reply(&filter)
+            .await;
+
+        assert_200_list_response(
+            response,
+            json::JsonValue::Array(api_repo[50..100].to_vec()),
+            100,
+            false,
         );
     }
 

@@ -72,8 +72,13 @@ impl DefaultBackend {
         &self,
         pagination: PaginationOptions,
     ) -> Result<DataStoreOrganizationList, BackendError> {
-        let found_orgs = self.database.list_orgs(pagination).await?;
-        Ok(found_orgs.into())
+        let found_orgs = self.database.list_orgs(&pagination).await?;
+        let total_count = self.database.count_orgs().await?;
+        Ok(DataStoreOrganizationList::from(
+            found_orgs,
+            total_count,
+            pagination.has_more(total_count),
+        ))
     }
 
     #[instrument(skip(self))]
@@ -115,8 +120,13 @@ impl DefaultBackend {
         org_name: &str,
         pagination: PaginationOptions,
     ) -> Result<DataStoreRepositoryList, BackendError> {
-        let repos = self.database.list_repo(org_name, pagination).await?;
-        Ok(repos.into())
+        let repos = self.database.list_repos(org_name, &pagination).await?;
+        let total_count = self.database.count_repos(org_name).await?;
+        Ok(DataStoreRepositoryList::from(
+            repos,
+            total_count,
+            pagination.has_more(total_count),
+        ))
     }
 
     #[instrument(skip(self))]
@@ -233,11 +243,18 @@ impl DefaultBackend {
         repo_name: &str,
         pagination: PaginationOptions,
     ) -> Result<DataStoreVersionList, BackendError> {
-        Ok(self
+        let repo_param = RepoParam::new(org_name, repo_name);
+        let all_revisions = self
             .database
-            .list_revisions(&RepoParam::new(org_name, repo_name), pagination)
-            .await?
-            .into())
+            .list_revisions(&repo_param, &pagination)
+            .await?;
+
+        let total_count = self.database.count_revisions(&repo_param).await?;
+        Ok(DataStoreVersionList::from(
+            all_revisions,
+            total_count,
+            pagination.has_more(total_count),
+        ))
     }
 
     #[instrument(skip(self))]
