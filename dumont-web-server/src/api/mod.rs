@@ -32,7 +32,9 @@ pub mod prelude {
         warp::any().map(move || db.clone())
     }
 
-    pub fn wrap_body<T>(body: Result<T, impl Reject>) -> Result<impl Reply, Rejection>
+    pub fn wrap_body<T>(
+        body: Result<PaginatedWrapperResponse<T>, impl Reject>,
+    ) -> Result<impl Reply, Rejection>
     where
         T: Serialize,
     {
@@ -45,7 +47,8 @@ pub mod prelude {
 
         let response = ApplicationResponse {
             status: StatusResponse::ok(),
-            data: Some(body),
+            data: Some(body.data),
+            page: body.page_options,
         };
 
         Ok(warp::reply::json(&response))
@@ -85,11 +88,42 @@ pub mod prelude {
             Self { deleted: source }
         }
     }
+
+    pub struct PaginatedWrapperResponse<T>
+    where
+        T: Serialize,
+    {
+        data: T,
+        page_options: Option<super::models::PaginationState>,
+    }
+
+    impl<T: Serialize> PaginatedWrapperResponse<T> {
+        pub fn without_page(body: T) -> PaginatedWrapperResponse<T> {
+            PaginatedWrapperResponse {
+                data: body,
+                page_options: None,
+            }
+        }
+
+        pub fn with_page(body: T, total: usize, has_more: bool) -> PaginatedWrapperResponse<T> {
+            PaginatedWrapperResponse {
+                data: body,
+                page_options: Some(PaginationState { total, has_more }),
+            }
+        }
+    }
 }
 
 mod models {
     use serde::Serialize;
     use warp::http::StatusCode;
+
+    #[derive(Debug, Serialize)]
+    pub struct PaginationState {
+        #[serde(rename = "more")]
+        pub has_more: bool,
+        pub total: usize,
+    }
 
     #[derive(Serialize)]
     #[serde(remote = "StatusCode")]
@@ -150,6 +184,8 @@ mod models {
         pub status: StatusResponse,
         #[serde(skip_serializing_if = "Option::is_none")]
         pub data: Option<T>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub page: Option<PaginationState>,
     }
 
     #[test]
@@ -159,6 +195,7 @@ mod models {
         let serialized = serde_json::to_string(&ApplicationResponse::<()> {
             status: StatusResponse::ok(),
             data: None,
+            page: None,
         })
         .unwrap();
 
@@ -282,7 +319,11 @@ mod canned_response {
     pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
         let status = StatusResponse::Error(err.into());
         let status_code = status.status();
-        let response: ApplicationResponse<()> = ApplicationResponse { data: None, status };
+        let response: ApplicationResponse<()> = ApplicationResponse {
+            data: None,
+            status,
+            page: None,
+        };
 
         let json = warp::reply::json(&response);
 

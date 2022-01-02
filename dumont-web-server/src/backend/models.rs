@@ -13,6 +13,18 @@ impl PaginationOptions {
             page_size,
         }
     }
+
+    pub fn has_more(&self, total: usize) -> bool {
+        (1 + self.page_number) * self.page_size < total
+    }
+}
+
+#[test]
+fn validate_has_more() {
+    assert_eq!(PaginationOptions::new(0, 50).has_more(100), true);
+    assert_eq!(PaginationOptions::new(0, 50).has_more(10), false);
+    assert_eq!(PaginationOptions::new(10, 50).has_more(551), true);
+    assert_eq!(PaginationOptions::new(10, 50).has_more(400), false);
 }
 
 #[derive(Debug, Clone)]
@@ -39,13 +51,23 @@ impl From<&crate::database::prelude::DbOrganizationModel> for DataStoreOrganizat
 #[derive(Debug, Clone)]
 pub struct DataStoreOrganizationList {
     pub orgs: Vec<DataStoreOrganization>,
+    pub total_count: usize,
+    pub has_more: bool,
 }
 
-impl From<Vec<crate::database::prelude::DbOrganizationModel>> for DataStoreOrganizationList {
-    fn from(source: Vec<crate::database::prelude::DbOrganizationModel>) -> Self {
+impl DataStoreOrganizationList {
+    pub fn from(
+        source: Vec<crate::database::prelude::DbOrganizationModel>,
+        total_count: usize,
+        has_more: bool,
+    ) -> Self {
         let orgs: Vec<DataStoreOrganization> = source.iter().map(|it| it.into()).collect();
 
-        Self { orgs }
+        Self {
+            orgs,
+            total_count,
+            has_more,
+        }
     }
 }
 
@@ -75,26 +97,46 @@ impl From<&crate::database::prelude::DbRepoModel> for DataStoreRepository {
 #[derive(Debug, Clone)]
 pub struct DataStoreRepositoryList {
     pub repos: Vec<DataStoreRepository>,
+    pub total_count: usize,
+    pub has_more: bool,
 }
 
-impl From<Vec<crate::database::prelude::DbRepoModel>> for DataStoreRepositoryList {
-    fn from(source: Vec<crate::database::prelude::DbRepoModel>) -> Self {
+impl DataStoreRepositoryList {
+    pub fn from(
+        source: Vec<crate::database::prelude::DbRepoModel>,
+        total_count: usize,
+        has_more: bool,
+    ) -> Self {
         let repos: Vec<DataStoreRepository> = source.iter().map(|it| it.into()).collect();
 
-        Self { repos }
+        Self {
+            repos,
+            total_count,
+            has_more,
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct DataStoreVersionList {
     pub versions: Vec<DataStoreRevision>,
+    pub total_count: usize,
+    pub has_more: bool,
 }
 
-impl From<Vec<crate::database::prelude::DbRevisionModel>> for DataStoreVersionList {
-    fn from(source: Vec<crate::database::prelude::DbRevisionModel>) -> Self {
+impl DataStoreVersionList {
+    pub fn from(
+        source: Vec<crate::database::prelude::DbRevisionModel>,
+        total_count: usize,
+        has_more: bool,
+    ) -> DataStoreVersionList {
         let versions: Vec<DataStoreRevision> = source.iter().map(|it| it.into()).collect();
 
-        Self { versions }
+        Self {
+            versions,
+            total_count,
+            has_more,
+        }
     }
 }
 

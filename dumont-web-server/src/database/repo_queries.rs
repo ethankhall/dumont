@@ -117,11 +117,13 @@ pub trait RepoQueries {
 
     async fn get_repo_by_id(&self, repo_id: i32) -> DbResult<DbRepoModel>;
 
-    async fn list_repo(
+    async fn list_repos(
         &self,
         org_name: &str,
-        pagination: PaginationOptions,
+        pagination: &PaginationOptions,
     ) -> DbResult<Vec<DbRepoModel>>;
+
+    async fn count_repos(&self, org_name: &str) -> DbResult<usize>;
 
     async fn delete_repo(&self, repo: &RepoParam<'_>) -> DbResult<bool>;
 }
@@ -206,10 +208,23 @@ impl RepoQueries for PostgresDatabase {
     }
 
     #[instrument(skip(self))]
-    async fn list_repo(
+    async fn count_repos(&self, org_name: &str) -> DbResult<usize> {
+        use entity::repository::Column;
+        let org = self.sql_get_org(org_name).await?;
+        let count = org
+            .find_related(Repository)
+            .order_by_asc(Column::OrgId)
+            .count(&self.db)
+            .await?;
+
+        Ok(count)
+    }
+
+    #[instrument(skip(self))]
+    async fn list_repos(
         &self,
         org_name: &str,
-        pagination: PaginationOptions,
+        pagination: &PaginationOptions,
     ) -> DbResult<Vec<DbRepoModel>> {
         use entity::repository::Column;
 
@@ -363,7 +378,7 @@ mod integ_test {
         .unwrap();
 
         let found_repos = db
-            .list_repo("foo", PaginationOptions::new(0, 50))
+            .list_repos("foo", &PaginationOptions::new(0, 50))
             .await
             .unwrap();
         assert_eq!(found_repos.len(), 2);
@@ -371,7 +386,7 @@ mod integ_test {
         assert_eq!(found_repos[1].repo_name, "flig");
 
         assert_eq!(
-            db.list_repo("foo", PaginationOptions::new(1, 50))
+            db.list_repos("foo", &PaginationOptions::new(1, 50))
                 .await
                 .unwrap()
                 .len(),
@@ -402,7 +417,7 @@ mod integ_test {
         }
 
         let found_repos = db
-            .list_repo("foo", PaginationOptions::new(0, 50))
+            .list_repos("foo", &PaginationOptions::new(0, 50))
             .await
             .unwrap();
         assert_eq!(found_repos.len(), 50);
@@ -412,7 +427,7 @@ mod integ_test {
         }
 
         let found_repos = db
-            .list_repo("foo", PaginationOptions::new(1, 50))
+            .list_repos("foo", &PaginationOptions::new(1, 50))
             .await
             .unwrap();
         assert_eq!(found_repos.len(), 50);
@@ -421,7 +436,7 @@ mod integ_test {
             assert_eq!(found_repos[i].repo_name, format!("repo-{}", i + 50));
         }
 
-        let found_repos = db.list_orgs(PaginationOptions::new(2, 50)).await.unwrap();
+        let found_repos = db.list_orgs(&&PaginationOptions::new(2, 50)).await.unwrap();
         assert_eq!(found_repos.len(), 0);
     }
 
@@ -457,7 +472,7 @@ mod integ_test {
         }
 
         let found_repos = db
-            .list_repo("foo", PaginationOptions::new(0, 50))
+            .list_repos("foo", &PaginationOptions::new(0, 50))
             .await
             .unwrap();
         assert_eq!(found_repos.len(), 0);

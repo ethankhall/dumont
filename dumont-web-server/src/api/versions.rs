@@ -1,5 +1,4 @@
 use super::prelude::*;
-use crate::backend::BackendError;
 use tracing::info;
 use tracing_attributes::instrument;
 use warp::{Filter, Rejection, Reply};
@@ -124,8 +123,11 @@ async fn create_version_impl(
     let result = db
         .create_version(&org, &repo, &version.version, version.labels.labels)
         .await;
-    let result = result.map(GetVersion::from);
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(GetVersion::from)
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 fn update_version(
@@ -150,8 +152,11 @@ async fn update_version_impl(
     let result = db
         .update_version(&org, &repo, &version, update.labels)
         .await;
-    let result = result.map(GetVersion::from);
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(GetVersion::from)
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 fn delete_version(
@@ -172,8 +177,11 @@ async fn delete_version_impl(
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.delete_version(&org, &repo, &version).await;
-    let result: Result<DeleteStatus, BackendError> = result.map(DeleteStatus::from);
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(DeleteStatus::from)
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 fn list_versions(
@@ -195,9 +203,19 @@ async fn list_versions_impl(
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.list_versions(&org, &repo, pagination.into()).await;
-    let result: Result<Vec<GetVersion>, BackendError> =
-        result.map(|version_list| version_list.versions.iter().map(GetVersion::from).collect());
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result: Result<PaginatedWrapperResponse<Vec<GetVersion>>, ErrorStatusResponse> = result
+        .map(|version_list| {
+            (
+                version_list.versions.iter().map(GetVersion::from).collect(),
+                version_list.total_count,
+                version_list.has_more,
+            )
+        })
+        .map(|(body, total_count, has_more)| {
+            PaginatedWrapperResponse::with_page(body, total_count, has_more)
+        })
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 fn get_version(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -216,8 +234,11 @@ async fn get_version_impl(
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.get_version(&org, &repo, &version).await;
-    let result = result.map(GetVersion::from);
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(GetVersion::from)
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 #[cfg(test)]
@@ -294,7 +315,7 @@ mod integ_test {
         let revisions = backend
             .list_revisions(
                 &RepoParam::new("example", "example-repo-1"),
-                PaginationOptions::new(0, 50),
+                &PaginationOptions::new(0, 50),
             )
             .await
             .unwrap();
@@ -383,7 +404,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_response(response, http::StatusCode::OK, page.into());
+        assert_200_list_response(response, page.into(), 99, true);
 
         let mut page = Vec::new();
         for i in 51..100 {
@@ -396,7 +417,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_response(response, http::StatusCode::OK, page.into());
+        assert_200_list_response(response, page.into(), 99, false);
 
         let response = request()
             .path("/api/org/example/repo/example-repo-1/version?page=2")
@@ -404,7 +425,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_response(response, http::StatusCode::OK, array![]);
+        assert_200_list_response(response, array![], 99, false);
 
         let mut page = Vec::new();
         for i in 1..=20 {
@@ -417,7 +438,7 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_response(response, http::StatusCode::OK, page.into());
+        assert_200_list_response(response, page.into(), 99, true);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

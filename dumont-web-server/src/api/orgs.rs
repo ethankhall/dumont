@@ -1,5 +1,4 @@
 use super::prelude::*;
-use crate::backend::BackendError;
 use tracing::info;
 use tracing_attributes::instrument;
 use warp::{Filter, Rejection, Reply};
@@ -51,8 +50,11 @@ async fn create_org_impl(
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.create_organization(&org.org).await;
-    let result = result.map(|org| GetOrganization { org: org.name });
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(|org| GetOrganization { org: org.name })
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 fn delete_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -66,8 +68,11 @@ fn delete_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = R
 #[instrument(name = "rest_org_delete", skip(db))]
 async fn delete_org_impl(org_name: String, db: crate::Backend) -> Result<impl Reply, Rejection> {
     let result = db.delete_organization(&org_name).await;
-    let result: Result<DeleteStatus, BackendError> = result.map(DeleteStatus::from);
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(DeleteStatus::from)
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 fn list_orgs(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -85,9 +90,20 @@ async fn list_orgs_impl(
     db: crate::Backend,
 ) -> Result<impl Reply, Rejection> {
     let result = db.list_organizations(pageination.into()).await;
-    let result: Result<Vec<GetOrganization>, BackendError> =
-        result.map(|orgs_list| orgs_list.orgs.iter().map(GetOrganization::from).collect());
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result: Result<PaginatedWrapperResponse<Vec<GetOrganization>>, ErrorStatusResponse> =
+        result
+            .map(|orgs_list| {
+                (
+                    orgs_list.orgs.iter().map(GetOrganization::from).collect(),
+                    orgs_list.total_count,
+                    orgs_list.has_more,
+                )
+            })
+            .map(|(body, total_count, has_more)| {
+                PaginatedWrapperResponse::with_page(body, total_count, has_more)
+            })
+            .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 fn get_an_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -101,8 +117,11 @@ fn get_an_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = R
 #[instrument(name = "rest_org_get", skip(db))]
 async fn get_an_org_impl(org_name: String, db: crate::Backend) -> Result<impl Reply, Rejection> {
     let result = db.get_organization(&org_name).await;
-    let result: Result<GetOrganization, BackendError> = result.map(GetOrganization::from);
-    wrap_body(result.map_err(ErrorStatusResponse::from))
+    let result = result
+        .map(GetOrganization::from)
+        .map(PaginatedWrapperResponse::without_page)
+        .map_err(ErrorStatusResponse::from);
+    wrap_body(result)
 }
 
 #[cfg(test)]
@@ -200,9 +219,11 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_200_response(
+        assert_200_list_response(
             response,
             array!({"org": "example-org"}, {"org": "example-org-2"}),
+            2,
+            false,
         );
     }
 
@@ -245,6 +266,6 @@ mod integ_test {
             .reply(&filter)
             .await;
 
-        assert_200_response(response, array! {});
+        assert_200_list_response(response, array! {}, 0, false);
     }
 }

@@ -41,8 +41,10 @@ pub trait RevisionQueries {
     async fn list_revisions(
         &self,
         repo_param: &RepoParam<'_>,
-        pagination: PaginationOptions,
+        pagination: &PaginationOptions,
     ) -> DbResult<Vec<DbRevisionModel>>;
+
+    async fn count_revisions(&self, repo_param: &RepoParam<'_>) -> DbResult<usize>;
 
     async fn delete_revision(&self, revision_param: &RevisionParam<'_>) -> DbResult<bool>;
 }
@@ -177,10 +179,24 @@ impl RevisionQueries for PostgresDatabase {
     }
 
     #[instrument(skip(self))]
+    async fn count_revisions(&self, repo_param: &RepoParam<'_>) -> DbResult<usize> {
+        let repo = self
+            .sql_get_repo(repo_param.org_name, repo_param.repo_name)
+            .await?;
+        let count = repo
+            .find_related(RepositoryRevision)
+            .order_by_asc(entity::repository_revision::Column::RepoId)
+            .count(&self.db)
+            .await?;
+
+        Ok(count)
+    }
+
+    #[instrument(skip(self))]
     async fn list_revisions(
         &self,
         repo_param: &RepoParam<'_>,
-        pagination: PaginationOptions,
+        pagination: &PaginationOptions,
     ) -> DbResult<Vec<DbRevisionModel>> {
         let repo = self
             .sql_get_repo(repo_param.org_name, repo_param.repo_name)
@@ -348,7 +364,7 @@ mod integ_test {
         let revisions = db
             .list_revisions(
                 &RepoParam::new("example", "example-repo-1"),
-                PaginationOptions::new(0, 50),
+                &PaginationOptions::new(0, 50),
             )
             .await
             .unwrap();

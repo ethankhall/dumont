@@ -85,14 +85,14 @@ pub async fn create_repo(db: &PostgresDatabase, org: &str, repo: &str) -> DbResu
     Ok(())
 }
 
-pub async fn create_org_and_repos(
+pub async fn create_org_and_repos<T: ToString>(
     db: &PostgresDatabase,
     org: &str,
-    repos: Vec<&str>,
+    repos: Vec<T>,
 ) -> DbResult<()> {
     db.create_org(org).await.unwrap();
     for repo in repos {
-        create_repo(&db, org, repo).await.unwrap();
+        create_repo(&db, org, &repo.to_string()).await.unwrap();
     }
 
     Ok(())
@@ -130,7 +130,36 @@ pub async fn create_repo_with_params(
 }
 
 pub fn assert_200_response(response: http::Response<bytes::Bytes>, expected_body: json::JsonValue) {
-    assert_response(response, http::StatusCode::OK, expected_body);
+    use json::object;
+    assert_response(
+        response,
+        http::StatusCode::OK,
+        object! {
+            "status": { "code": 200 },
+            "data": expected_body
+        },
+    );
+}
+
+pub fn assert_200_list_response(
+    response: http::Response<bytes::Bytes>,
+    expected_body: json::JsonValue,
+    total: usize,
+    has_more: bool,
+) {
+    use json::object;
+    assert_response(
+        response,
+        http::StatusCode::OK,
+        object! {
+            "status": { "code": 200 },
+            "data": expected_body,
+            "page": {
+                "more": has_more,
+                "total": total,
+            }
+        },
+    );
 }
 
 pub fn assert_response(
@@ -138,7 +167,6 @@ pub fn assert_response(
     status: http::StatusCode,
     expected_body: json::JsonValue,
 ) {
-    use json::object;
     let body = String::from_utf8(response.body().to_vec()).unwrap();
     println!("{:?}", body);
     let body = match json::parse(&body) {
@@ -148,13 +176,7 @@ pub fn assert_response(
         }
         Ok(body) => body,
     };
-    assert_eq!(
-        json::stringify(body),
-        json::stringify(object! {
-            "status": { "code": response.status().as_u16() },
-            "data": expected_body
-        })
-    );
+    assert_eq!(json::stringify(body), json::stringify(expected_body));
     assert_eq!(response.status(), status);
 }
 
