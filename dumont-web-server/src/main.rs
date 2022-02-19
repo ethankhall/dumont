@@ -99,6 +99,14 @@ pub struct RunWebServerArgs {
     /// incoming edits.
     #[clap(long = "policy")]
     policy_document: Option<String>,
+
+    /// Address to expose the main API on
+    #[clap(long = "server-address", env = "SERVER_ADDRESS", default_value("127.0.0.1:3030"))]
+    server_address: String,
+
+    /// Address to expose the main API on
+    #[clap(long = "admin-address", env = "ADMIN_ADDRESS", default_value("127.0.0.1:3031"))]
+    admin_address: String,
 }
 
 #[derive(Args, Debug)]
@@ -229,6 +237,7 @@ async fn run_db_migration(args: RunDatabaseMigrationsArgs) -> Result<(), anyhow:
 async fn run_webserver(args: RunWebServerArgs) -> Result<(), anyhow::Error> {
     use crate::policy::RealizedPolicyContainer;
     use warp::Filter;
+    use std::net::SocketAddr;
 
     let policy_container: RealizedPolicyContainer = match args.policy_document {
         Some(path) => {
@@ -245,14 +254,16 @@ async fn run_webserver(args: RunWebServerArgs) -> Result<(), anyhow::Error> {
 
     let filters = api::create_filters(backend).await;
 
-    let api_server = warp::serve(filters).run(([127, 0, 0, 1], 3030));
+    let api_addr: SocketAddr = args.server_address.parse()?;
+    let api_server = warp::serve(filters).run(api_addr);
 
     let admin_server = warp::path("metrics")
         .map(api::metrics::metrics_endpoint)
         .or(warp::path("status").map(|| "OK"))
         .with(warp::trace::request());
 
-    let admin_server = warp::serve(admin_server).run(([127, 0, 0, 1], 3031));
+    let admin_addr: SocketAddr = args.admin_address.parse()?;
+    let admin_server = warp::serve(admin_server).run(admin_addr);
 
     let (_main, _admin) = join!(api_server, admin_server);
 

@@ -25,6 +25,10 @@ spec:
           - containerPort: 3031
             name: http-metrics
         env:
+          - name: SERVER_ADDRESS
+            value: 0.0.0.0:3030
+          - name: ADMIN_ADDRESS
+            value: 0.0.0.0:3031
           - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
             value: http://otel-collector.metrics.svc.cluster.local:4317
           - name: DATABASE_URL
