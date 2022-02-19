@@ -1,4 +1,4 @@
-FROM rust:1.57.0-buster as rust-builder
+FROM rust:1.58.1-buster as rust-builder
 
 WORKDIR /dumont
 
