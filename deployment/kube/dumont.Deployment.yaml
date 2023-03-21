@@ -17,9 +17,20 @@ spec:
         app: dumont
         name: dumont
     spec:
+      initContainers:
+        - name: db-migrate
+          image: ghcr.io/ethankhall/dumont/dumont:0.1.3
+          env:
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: http://otel-collector.metrics.svc.cluster.local:4317
+            - name: DATABASE_URL
+              value: postgresql://dumont:password@postgres:5432/dumont
+          command:
+            - /app/dumont
+            - db-migrate
       containers:
       - name: dumont
-        image: ghcr.io/ethankhall/dumont/dumont
+        image: ghcr.io/ethankhall/dumont/dumont:0.1.3
         ports:
           - containerPort: 3030
           - containerPort: 3031
@@ -36,3 +47,11 @@ spec:
         command:
           - /app/dumont
           - web-server
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: 3031
+        livenessProbe:
+          httpGet:
+            path: /status
+            port: 3031
