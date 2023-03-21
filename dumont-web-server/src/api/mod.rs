@@ -7,7 +7,7 @@ use warp::{Filter, Reply};
 
 pub async fn create_filters(
     db: crate::Backend,
-) -> impl Filter<Extract = impl Reply> + Clone + Send + Sync + 'static {
+) -> impl Filter<Extract = (impl Reply,)> + Clone + Send + Sync + 'static {
     filters::api(db)
         .recover(canned_response::handle_rejection)
         .with(warp::trace::request())
@@ -213,11 +213,11 @@ mod models {
 mod filters {
     use warp::{Filter, Rejection, Reply};
 
-    pub fn api(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    pub fn api(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
         super::orgs::create_org_api(db.clone())
             .or(super::repos::create_repo_api(db.clone()))
             .or(super::versions::create_version_api(db))
-            .with(warp::log::custom(super::metrics::track_status))
+            .with(warp::trace::request())
     }
 }
 

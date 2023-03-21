@@ -94,7 +94,7 @@ impl From<&crate::backend::models::DataStoreRevision> for GetVersion {
 
 pub fn create_version_api(
     db: crate::Backend,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     create_version(db.clone())
         .or(update_version(db.clone()))
         .or(delete_version(db.clone()))
@@ -104,7 +104,7 @@ pub fn create_version_api(
 
 fn create_version(
     db: crate::Backend,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("POST /api/org/{{org}}/repo/{{repo}}/version");
     warp::path!("api" / "org" / String / "repo" / String / "version")
         .and(warp::post())
@@ -132,7 +132,7 @@ async fn create_version_impl(
 
 fn update_version(
     db: crate::Backend,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("PUT /api/org/{{org}}/repo/{{repo}}/version/{{version}}");
     warp::path!("api" / "org" / String / "repo" / String / "version" / String)
         .and(warp::put())
@@ -161,7 +161,7 @@ async fn update_version_impl(
 
 fn delete_version(
     db: crate::Backend,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("DELETE /api/org/{{org}}/repo/{{repo}}/version/{{version}}");
     warp::path!("api" / "org" / String / "repo" / String / "version" / String)
         .and(warp::delete())
@@ -186,7 +186,7 @@ async fn delete_version_impl(
 
 fn list_versions(
     db: crate::Backend,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo/{{repo}}/version");
     warp::path!("api" / "org" / String / "repo" / String / "version")
         .and(warp::get())
@@ -218,7 +218,7 @@ async fn list_versions_impl(
     wrap_body(result)
 }
 
-fn get_version(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn get_version(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo/{{repo}}/version/{{version}}");
     warp::path!("api" / "org" / String / "repo" / String / "version" / String)
         .and(warp::get())

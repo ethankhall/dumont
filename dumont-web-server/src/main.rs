@@ -1,25 +1,9 @@
 use crate::backend::DefaultBackend;
-use clap::{ArgGroup, Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use futures_util::join;
 use std::sync::Arc;
-use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{
-    fmt::format::{Format, JsonFields, PrettyFields},
-    layer::SubscriberExt,
-    Registry,
-};
 
-use opentelemetry::{
-    global,
-    sdk::{
-        propagation::TraceContextPropagator,
-        trace::{self, RandomIdGenerator, Sampler},
-        Resource,
-    },
-    KeyValue,
-};
-use opentelemetry_otlp::WithExportConfig;
-
+mod logging;
 mod api;
 mod backend;
 mod database;
@@ -72,10 +56,10 @@ pub struct Opts {
     pub sub_command: MainOperation,
 
     #[clap(flatten)]
-    pub logging_opts: LoggingOpts,
+    pub logging_opts: logging::LoggingOpts,
 
     #[clap(flatten)]
-    pub runtime_args: RuntimeArgs,
+    pub runtime_args: logging::RuntimeArgs,
 }
 
 #[derive(Subcommand, Debug)]
@@ -83,6 +67,10 @@ pub enum MainOperation {
     /// Run the web server
     #[clap(name = "web-server")]
     RunWebServer(RunWebServerArgs),
+
+    /// Run the DB Migration
+    #[clap(name = "db-migrate")]
+    DatabaseMigration(RunDatabaseMigrationsArgs),
 }
 
 #[derive(Args, Debug)]
@@ -106,46 +94,10 @@ pub struct RunWebServerArgs {
 }
 
 #[derive(Args, Debug)]
-pub struct RuntimeArgs {
-    /// The URL to publish metrics to.
-    #[clap(
-        long = "open-telem-collector",
-        env = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-        default_value("http://localhost:4317")
-    )]
-    otel_collector: String,
-}
-
-#[derive(Parser, Debug)]
-#[clap(group = ArgGroup::new("logging"))]
-pub struct LoggingOpts {
-    /// A level of verbosity, and can be used multiple times
-    #[clap(short, long, action = clap::ArgAction::Count, global(true), group = "logging")]
-    pub debug: u64,
-
-    /// Enable warn logging
-    #[clap(short, long, global(true), group = "logging")]
-    pub warn: bool,
-
-    /// Disable everything but error logging
-    #[clap(short, long, global(true), group = "logging")]
-    pub error: bool,
-}
-
-impl From<LoggingOpts> for LevelFilter {
-    fn from(opts: LoggingOpts) -> Self {
-        if opts.error {
-            LevelFilter::ERROR
-        } else if opts.warn {
-            LevelFilter::WARN
-        } else if opts.debug == 0 {
-            LevelFilter::INFO
-        } else if opts.debug == 1 {
-            LevelFilter::DEBUG
-        } else {
-            LevelFilter::TRACE
-        }
-    }
+pub struct RunDatabaseMigrationsArgs {
+    /// Database Connection String
+    #[clap(long = "database-url", env = "DATABASE_URL")]
+    db_connection_string: String,
 }
 
 #[tokio::main]
@@ -155,59 +107,24 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let opt = Opts::parse();
 
-    global::set_text_map_propagator(TraceContextPropagator::new());
-    let tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-                .with_endpoint(opt.runtime_args.otel_collector),
-        )
-        .with_trace_config(
-            trace::config()
-                .with_sampler(Sampler::AlwaysOn)
-                .with_id_generator(RandomIdGenerator::default())
-                .with_resource(Resource::new(vec![KeyValue::new("service.name", "dumont")])),
-        )
-        .install_batch(opentelemetry::runtime::Tokio)
-        .unwrap();
-
-    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-
-    let is_terminal = atty::is(atty::Stream::Stdout) && cfg!(debug_assertions);
-    let pretty_logger = if is_terminal {
-        Some(
-            tracing_subscriber::fmt::layer()
-                .event_format(Format::default().pretty())
-                .fmt_fields(PrettyFields::new()),
-        )
-    } else {
-        None
-    };
-
-    let json_logger = if !is_terminal {
-        Some(
-            tracing_subscriber::fmt::layer()
-                .event_format(Format::default().json().flatten_event(true))
-                .fmt_fields(JsonFields::new()),
-        )
-    } else {
-        None
-    };
-
-    let subscriber = Registry::default()
-        .with(LevelFilter::from(opt.logging_opts))
-        .with(otel_layer)
-        .with(json_logger)
-        .with(pretty_logger);
-
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-
-    let _init = tracing_log::LogTracer::init().expect("logging to work correctly");
+    logging::configure_logging(&opt.logging_opts, &opt.runtime_args);
 
     match opt.sub_command {
         MainOperation::RunWebServer(args) => run_webserver(args).await,
+        MainOperation::DatabaseMigration(args) => run_db_migration(args).await,
     }
+}
+
+async fn run_db_migration(args: RunDatabaseMigrationsArgs) -> Result<(), anyhow::Error> {
+    use sqlx::postgres::PgPoolOptions;
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&args.db_connection_string)
+        .await?;
+
+    sqlx::migrate!().run(&pool).await?;
+
+    Ok(())
 }
 
 async fn run_webserver(args: RunWebServerArgs) -> Result<(), anyhow::Error> {

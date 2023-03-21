@@ -28,14 +28,14 @@ impl From<&crate::backend::models::DataStoreOrganization> for GetOrganization {
 
 pub fn create_org_api(
     db: crate::Backend,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     create_org(db.clone())
         .or(delete_org(db.clone()))
         .or(list_orgs(db.clone()))
         .or(get_an_org(db))
 }
 
-fn create_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn create_org(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("POST /api/org");
     warp::path!("api" / "org")
         .and(warp::post())
@@ -57,7 +57,7 @@ async fn create_org_impl(
     wrap_body(result)
 }
 
-fn delete_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn delete_org(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("DELETE /api/org/{{org}}");
     warp::path!("api" / "org" / String)
         .and(warp::delete())
@@ -75,7 +75,7 @@ async fn delete_org_impl(org_name: String, db: crate::Backend) -> Result<impl Re
     wrap_body(result)
 }
 
-fn list_orgs(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn list_orgs(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("GET /api/org");
     warp::path!("api" / "org")
         .and(warp::get())
@@ -106,7 +106,7 @@ async fn list_orgs_impl(
     wrap_body(result)
 }
 
-fn get_an_org(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn get_an_org(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}");
     warp::path!("api" / "org" / String)
         .and(warp::get())

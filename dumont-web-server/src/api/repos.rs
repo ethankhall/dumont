@@ -88,7 +88,7 @@ pub struct UpdateRepository {
 
 pub fn create_repo_api(
     db: crate::Backend,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     create_repo(db.clone())
         .or(list_repos(db.clone()))
         .or(get_repo(db.clone()))
@@ -96,7 +96,7 @@ pub fn create_repo_api(
         .or(update_repo(db))
 }
 
-fn create_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn create_repo(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("POST /api/org/{{org}}/repo");
     warp::path!("api" / "org" / String / "repo")
         .and(warp::post())
@@ -119,7 +119,7 @@ async fn create_repo_impl(
     wrap_body(result)
 }
 
-fn list_repos(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn list_repos(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo");
     warp::path!("api" / "org" / String / "repo")
         .and(warp::get())
@@ -150,7 +150,7 @@ async fn list_repos_impl(
     wrap_body(result)
 }
 
-fn get_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn get_repo(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo/{{repo}}");
     warp::path!("api" / "org" / String / "repo" / String)
         .and(warp::get())
@@ -172,7 +172,7 @@ async fn get_repo_impl(
     wrap_body(result)
 }
 
-fn delete_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn delete_repo(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("DELETE /api/org/{{org}}/repo/{{repo}}");
     warp::path!("api" / "org" / String / "repo" / String)
         .and(warp::delete())
@@ -194,7 +194,7 @@ async fn delete_repo_impl(
     wrap_body(result)
 }
 
-fn update_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn update_repo(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("PUT /api/org/{{org}}/repo/{{repo}}");
     warp::path!("api" / "org" / String / "repo" / String)
         .and(warp::put())
