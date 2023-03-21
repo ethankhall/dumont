@@ -125,7 +125,10 @@ required_version_labels = [
 
     let parsed: Result<PolicyDefinitionContainer, toml::de::Error> = toml::from_str(input);
     assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().to_string().contains("TOML parse error at"));
+    assert!(parsed
+        .unwrap_err()
+        .to_string()
+        .contains("TOML parse error at"));
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

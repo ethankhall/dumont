@@ -219,7 +219,7 @@ mod filters {
         super::orgs::create_org_api(db.clone())
             .or(super::repos::create_repo_api(db.clone()))
             .or(super::versions::create_version_api(db))
-            .with(warp::trace::request())
+            .with(warp::log::custom(super::metrics::track_status))
     }
 }
 

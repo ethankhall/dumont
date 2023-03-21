@@ -701,7 +701,6 @@ dependencies = [
  "lazy_static",
  "opentelemetry",
  "opentelemetry-otlp",
- "opentelemetry-prometheus",
  "prometheus",
  "refinery",
  "regex",
@@ -1508,17 +1507,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonic",
-]
-
-[[package]]
-name = "opentelemetry-prometheus"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06c3d833835a53cf91331d2cfb27e9121f5a95261f31f08a1f79ab31688b8da8"
-dependencies = [
- "opentelemetry",
- "prometheus",
- "protobuf",
 ]
 
 [[package]]

@@ -1,47 +1,50 @@
-FROM rust:1.58.1-buster as rust-builder
+# syntax=docker/dockerfile:1.4
+FROM rust:bullseye as chef
+COPY rust-toolchain.toml rust-toolchain.toml
+RUN <<EOT
+#!/usr/bin/env bash
+set -euxo pipefail
 
-WORKDIR /dumont
-
-# copy over your manifests
-COPY ./Cargo.lock ./Cargo.lock
-COPY ./Cargo.toml ./Cargo.toml
-
-RUN USER=root cargo new --bin dumont-web-server
-COPY dumont-web-server/Cargo.toml /dumont/dumont-web-server/Cargo.toml
-WORKDIR /dumont
-
-RUN cargo build --release
-RUN rm dumont-web-server/src/*.rs
-RUN rm target/release/deps/dumont*
-
-ADD dumont-web-server /dumont/dumont-web-server
-
-# this build step will cache your dependencies
-RUN cargo build --release
-RUN mkdir /app && mv target/release/dumont-web-server /app/dumont
-RUN /app/dumont --help
-
-# verify linked deps
-FROM debian:buster-slim
-
-RUN apt-get update && apt-get install -y libpq5 && apt-get clean 
-
-# copy the build artifact from the build stage
-COPY --from=rust-builder /app/dumont /app/dumont
-RUN /app/dumont --help
-RUN ls -alh /app/dumont
-
-# our final base
-FROM debian:buster-slim
-
-RUN apt-get update && apt-get install -y tini libpq5 && apt-get clean 
-
-# copy the build artifact from the build stage
-COPY --from=rust-builder /app/dumont /app/dumont
+apt-get update
+apt-get install protobuf-compiler -y
+cargo install cargo-chef
+EOT
 
 WORKDIR /app
-ENV PATH $PATH:/app
 
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare  --recipe-path recipe.json
+
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+# Build dependencies - this is the caching Docker layer!
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY . .
+
+FROM builder as test
+RUN <<EOT
+#!/usr/bin/env bash
+set -euxo pipefail
+
+rustup component add rustfmt clippy
+
+cargo test --release
+cargo fmt --check
+cargo clippy --release
+EOT
+
+FROM scratch as check
+COPY --from=dep_check /app/recipe.json recipe-dep-check.json
+COPY --from=test /app/recipe.json recipe-test.json
+
+FROM builder as release
+RUN cargo build --release --bin dumont-web-server
+RUN /app/target/release/dumont-web-server --help
+
+FROM debian:bullseye-slim AS runtime
+RUN apt-get update && apt-get install tini -y
+WORKDIR /app
+COPY --from=release /app/target/release/dumont-web-server /usr/local/bin
 ENTRYPOINT ["/usr/bin/tini", "--"]
-# set the startup command to run your binary
-CMD [ "/app/dumont"]
+CMD ["/usr/local/bin/dumont-web-server"]
