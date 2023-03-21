@@ -422,8 +422,8 @@ mod integ_test {
             .unwrap();
         assert_eq!(found_repos.len(), 50);
 
-        for i in 0..50 {
-            assert_eq!(found_repos[i].repo_name, format!("repo-{}", i));
+        for (i, item) in found_repos.iter().enumerate().take(50) {
+            assert_eq!(item.repo_name, format!("repo-{}", i));
         }
 
         let found_repos = db
@@ -432,8 +432,8 @@ mod integ_test {
             .unwrap();
         assert_eq!(found_repos.len(), 50);
 
-        for i in 0..50 {
-            assert_eq!(found_repos[i].repo_name, format!("repo-{}", i + 50));
+        for (i, item) in found_repos.iter().enumerate().take(50) {
+            assert_eq!(item.repo_name, format!("repo-{}", i + 50));
         }
 
         let found_repos = db.list_orgs(&&PaginationOptions::new(2, 50)).await.unwrap();

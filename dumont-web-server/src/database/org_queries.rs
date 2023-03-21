@@ -250,15 +250,15 @@ mod integ_test {
         let found_orgs = db.list_orgs(&PaginationOptions::new(0, 50)).await.unwrap();
         assert_eq!(found_orgs.len(), 50);
 
-        for i in 0..50 {
-            assert_eq!(found_orgs[i].org_name, format!("org-{}", i));
+        for (i, item) in found_orgs.iter().enumerate().take(50) {
+            assert_eq!(item.org_name, format!("org-{}", i));
         }
 
         let found_orgs = db.list_orgs(&PaginationOptions::new(1, 50)).await.unwrap();
         assert_eq!(found_orgs.len(), 50);
 
-        for i in 0..50 {
-            assert_eq!(found_orgs[i].org_name, format!("org-{}", i + 50));
+        for (i, item) in found_orgs.iter().enumerate().take(50) {
+            assert_eq!(item.org_name, format!("org-{}", i + 50));
         }
 
         let found_orgs = db.list_orgs(&PaginationOptions::new(2, 50)).await.unwrap();

@@ -56,7 +56,7 @@ fn get_db_url_with_test_db() -> String {
 }
 
 #[allow(dead_code)]
-pub fn logging_setup() -> () {
+pub fn logging_setup() {
     use tracing::level_filters::LevelFilter;
     use tracing_subscriber::{
         fmt::format::{Format, PrettyFields},
@@ -68,9 +68,7 @@ pub fn logging_setup() -> () {
         .event_format(Format::default().pretty())
         .fmt_fields(PrettyFields::new());
 
-    let subscriber = Registry::default()
-        .with(LevelFilter::from(LevelFilter::DEBUG))
-        .with(logger);
+    let subscriber = Registry::default().with(LevelFilter::DEBUG).with(logger);
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
@@ -92,7 +90,7 @@ pub async fn create_org_and_repos<T: ToString>(
 ) -> DbResult<()> {
     db.create_org(org).await.unwrap();
     for repo in repos {
-        create_repo(&db, org, &repo.to_string()).await.unwrap();
+        create_repo(db, org, repo).await.unwrap();
     }
 
     Ok(())
