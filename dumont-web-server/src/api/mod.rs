@@ -72,8 +72,8 @@ pub mod prelude {
     impl From<ApiPagination> for PaginationOptions {
         fn from(source: ApiPagination) -> Self {
             Self {
-                page_number: source.page.unwrap_or(0) as usize,
-                page_size: source.size.unwrap_or(50) as usize,
+                page_number: source.page.unwrap_or(0) as u64,
+                page_size: source.size.unwrap_or(50) as u64,
             }
         }
     }

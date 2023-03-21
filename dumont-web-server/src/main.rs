@@ -83,10 +83,6 @@ pub enum MainOperation {
     /// Run the web server
     #[clap(name = "web-server")]
     RunWebServer(RunWebServerArgs),
-
-    /// Run the DB Migration
-    #[clap(name = "db-migrate")]
-    DatabaseMigration(RunDatabaseMigrationsArgs),
 }
 
 #[derive(Args, Debug)]
@@ -107,13 +103,6 @@ pub struct RunWebServerArgs {
     /// Address to expose the main API on
     #[clap(long = "admin-address", env = "ADMIN_ADDRESS", default_value("127.0.0.1:3031"))]
     admin_address: String,
-}
-
-#[derive(Args, Debug)]
-pub struct RunDatabaseMigrationsArgs {
-    /// Database Connection String
-    #[clap(long = "database-url", env = "DATABASE_URL")]
-    db_connection_string: String,
 }
 
 #[derive(Args, Debug)]
@@ -218,20 +207,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     match opt.sub_command {
         MainOperation::RunWebServer(args) => run_webserver(args).await,
-        MainOperation::DatabaseMigration(args) => run_db_migration(args).await,
     }
-}
-
-async fn run_db_migration(args: RunDatabaseMigrationsArgs) -> Result<(), anyhow::Error> {
-    use sqlx::postgres::PgPoolOptions;
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&args.db_connection_string)
-        .await?;
-
-    sqlx::migrate!().run(&pool).await?;
-
-    Ok(())
 }
 
 async fn run_webserver(args: RunWebServerArgs) -> Result<(), anyhow::Error> {

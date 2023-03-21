@@ -133,7 +133,7 @@ impl RevisionQueries for PostgresDatabase {
         let model = entity::repository_revision::ActiveModel {
             repo_id: Set(repo.repo_id),
             revision_name: Set(revision_param.revision.to_string()),
-            created_at: Set(self.date_time_provider.now().naive_utc()),
+            created_at: Set(self.date_time_provider.now()),
             artifact_url: Set(create_revision_param.artifact_url.map(|s| s.to_string())),
             ..Default::default()
         };

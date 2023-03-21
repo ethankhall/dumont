@@ -2,12 +2,12 @@ use crate::database::prelude::{DbOrganization, DbRepo};
 
 #[derive(Debug, Clone)]
 pub struct PaginationOptions {
-    pub page_number: usize,
-    pub page_size: usize,
+    pub page_number: u64,
+    pub page_size: u64,
 }
 
 impl PaginationOptions {
-    pub fn new(page_number: usize, page_size: usize) -> Self {
+    pub fn new(page_number: u64, page_size: u64) -> Self {
         Self {
             page_number,
             page_size,

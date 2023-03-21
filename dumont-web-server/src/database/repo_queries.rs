@@ -159,7 +159,7 @@ impl RepoQueries for PostgresDatabase {
         let model = repository::ActiveModel {
             org_id: Set(org.org_id),
             repo_name: Set(repo_name),
-            created_at: Set(self.date_time_provider.now().naive_utc()),
+            created_at: Set(self.date_time_provider.now()),
             ..Default::default()
         };
 

@@ -113,7 +113,7 @@ impl RevisionLabelQueries for PostgresDatabase {
                 revision_id: Set(revision_id),
                 label_name: Set(key.to_string()),
                 label_value: Set(value.to_string()),
-                created_at: Set(self.date_time_provider.now().naive_utc()),
+                created_at: Set(self.date_time_provider.now()),
                 ..Default::default()
             })
         }
