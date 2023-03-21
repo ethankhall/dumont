@@ -12,35 +12,35 @@ warp = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 async-trait = "0.1.42"
-clap = { version = "3.0.0-rc.8", features = ["derive", "env"] }
+clap = { version = "4.1", features = ["derive", "env"] }
 chrono = "0.4"
 dotenv = "0.15.0"
 thiserror = "1.0"
 anyhow = "1.0"
-sea-query = "0.20"
-sea-orm = { version = "0.4", features = [ "sqlx-postgres", "runtime-tokio-rustls", "macros" ] }
+sea-query = "0.28"
+sea-orm = { version = "0.11", features = [ "sqlx-postgres", "runtime-tokio-rustls", "macros" ] }
 semver = "1"
 tracing-subscriber = { version = "0.3", features = ["registry", "json"] }
-tracing-opentelemetry = "0.16"
-tracing-core = "*"
+tracing-opentelemetry = "0.18"
+tracing-core = "0.1"
 tracing-log = "0.1"
 tracing = "0.1"
 tracing-attributes = "0.1"
-opentelemetry = { version = "0.16", features = ["rt-tokio"] }
-opentelemetry-otlp = { version = "0.9" }
-strum_macros = "0.21"
-strum = "0.21"
-refinery = { version = "0.7", features = ["postgres"]}
+opentelemetry = { version = "0.18", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.11" }
+strum_macros = "0.24"
+strum = "0.24"
+refinery = { version = "0.8", features = ["postgres"]}
 atty = "0.2"
-human-panic = "1.0.3"
-sqlx = { version = "0.5", features = [ "postgres", "migrate" ] }
+human-panic = "1.1"
+sqlx = { version = "0.6", features = [ "postgres", "migrate" ] }
 lazy_static = "1.4.0"
 prometheus = "0.13.0"
-futures-util = "0.3.19"
+futures-util = "0.3"
 regex = "1"
 toml = "*"
-derive_more = "0.99.17"
-derivative = "2.2.0"
+derive_more = "0.99"
+derivative = "2.2"
 
 [dev-dependencies]
 sea-orm = { version = "0.4", features = [ "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls", "macros" ] }

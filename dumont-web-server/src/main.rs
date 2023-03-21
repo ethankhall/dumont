@@ -13,7 +13,7 @@ use opentelemetry::{
     global,
     sdk::{
         propagation::TraceContextPropagator,
-        trace::{self, IdGenerator, Sampler},
+        trace::{self, RandomIdGenerator, Sampler},
         Resource,
     },
     KeyValue,
@@ -131,7 +131,7 @@ pub struct RuntimeArgs {
 #[clap(group = ArgGroup::new("logging"))]
 pub struct LoggingOpts {
     /// A level of verbosity, and can be used multiple times
-    #[clap(short, long, parse(from_occurrences), global(true), group = "logging")]
+    #[clap(short, long, action = clap::ArgAction::Count, global(true), group = "logging")]
     pub debug: u64,
 
     /// Enable warn logging
@@ -177,7 +177,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_trace_config(
             trace::config()
                 .with_sampler(Sampler::AlwaysOn)
-                .with_id_generator(IdGenerator::default())
+                .with_id_generator(RandomIdGenerator::default())
                 .with_resource(Resource::new(vec![KeyValue::new("service.name", "dumont")])),
         )
         .install_batch(opentelemetry::runtime::Tokio)
