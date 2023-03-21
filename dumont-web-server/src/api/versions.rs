@@ -218,7 +218,9 @@ async fn list_versions_impl(
     wrap_body(result)
 }
 
-fn get_version(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
+fn get_version(
+    db: crate::Backend,
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo/{{repo}}/version/{{version}}");
     warp::path!("api" / "org" / String / "repo" / String / "version" / String)
         .and(warp::get())

@@ -213,7 +213,9 @@ mod models {
 mod filters {
     use warp::{Filter, Rejection, Reply};
 
-    pub fn api(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
+    pub fn api(
+        db: crate::Backend,
+    ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
         super::orgs::create_org_api(db.clone())
             .or(super::repos::create_repo_api(db.clone()))
             .or(super::versions::create_version_api(db))

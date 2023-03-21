@@ -3,10 +3,10 @@ use clap::{Args, Parser, Subcommand};
 use futures_util::join;
 use std::sync::Arc;
 
-mod logging;
 mod api;
 mod backend;
 mod database;
+mod logging;
 mod policy;
 #[cfg(test)]
 pub mod test_utils;

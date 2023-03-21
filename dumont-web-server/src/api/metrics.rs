@@ -1,7 +1,7 @@
 use opentelemetry::sdk::export::metrics::aggregation;
 use opentelemetry::sdk::metrics::{controllers, processors, selectors};
 use opentelemetry_prometheus::PrometheusExporter;
-use prometheus::{TextEncoder, Encoder};
+use prometheus::{Encoder, TextEncoder};
 
 use warp::http::header::CONTENT_TYPE;
 
@@ -24,7 +24,7 @@ pub fn metrics_endpoint() -> impl warp::Reply {
     let encoder = TextEncoder::new();
     let metric_families = exporter.registry().gather();
     let mut result = Vec::new();
-    encoder.encode(&metric_families, &mut result).ok();    
+    encoder.encode(&metric_families, &mut result).ok();
 
     Ok(warp::reply::with_header(
         result,
