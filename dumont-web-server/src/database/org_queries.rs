@@ -66,7 +66,7 @@ pub trait OrganizationQueries {
     async fn find_org(&self, org_name: &str) -> DbResult<DbOrganizationModel>;
     async fn list_orgs(&self, pagination: &PaginationOptions)
         -> DbResult<Vec<DbOrganizationModel>>;
-    async fn count_orgs(&self) -> DbResult<usize>;
+    async fn count_orgs(&self) -> DbResult<u64>;
     async fn delete_org(&self, org_name: &str) -> DbResult<bool>;
 }
 
@@ -119,7 +119,7 @@ impl OrganizationQueries for PostgresDatabase {
     }
 
     #[instrument(skip(self))]
-    async fn count_orgs(&self) -> DbResult<usize> {
+    async fn count_orgs(&self) -> DbResult<u64> {
         let resp = Organization::find().count(&self.db).await?;
 
         Ok(resp)

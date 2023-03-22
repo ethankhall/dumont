@@ -14,7 +14,7 @@ impl PaginationOptions {
         }
     }
 
-    pub fn has_more(&self, total: usize) -> bool {
+    pub fn has_more(&self, total: u64) -> bool {
         (1 + self.page_number) * self.page_size < total
     }
 }
@@ -51,14 +51,14 @@ impl From<&crate::database::prelude::DbOrganizationModel> for DataStoreOrganizat
 #[derive(Debug, Clone)]
 pub struct DataStoreOrganizationList {
     pub orgs: Vec<DataStoreOrganization>,
-    pub total_count: usize,
+    pub total_count: u64,
     pub has_more: bool,
 }
 
 impl DataStoreOrganizationList {
     pub fn from(
         source: Vec<crate::database::prelude::DbOrganizationModel>,
-        total_count: usize,
+        total_count: u64,
         has_more: bool,
     ) -> Self {
         let orgs: Vec<DataStoreOrganization> = source.iter().map(|it| it.into()).collect();
@@ -97,14 +97,14 @@ impl From<&crate::database::prelude::DbRepoModel> for DataStoreRepository {
 #[derive(Debug, Clone)]
 pub struct DataStoreRepositoryList {
     pub repos: Vec<DataStoreRepository>,
-    pub total_count: usize,
+    pub total_count: u64,
     pub has_more: bool,
 }
 
 impl DataStoreRepositoryList {
     pub fn from(
         source: Vec<crate::database::prelude::DbRepoModel>,
-        total_count: usize,
+        total_count: u64,
         has_more: bool,
     ) -> Self {
         let repos: Vec<DataStoreRepository> = source.iter().map(|it| it.into()).collect();
@@ -120,14 +120,14 @@ impl DataStoreRepositoryList {
 #[derive(Debug, Clone)]
 pub struct DataStoreVersionList {
     pub versions: Vec<DataStoreRevision>,
-    pub total_count: usize,
+    pub total_count: u64,
     pub has_more: bool,
 }
 
 impl DataStoreVersionList {
     pub fn from(
         source: Vec<crate::database::prelude::DbRevisionModel>,
-        total_count: usize,
+        total_count: u64,
         has_more: bool,
     ) -> DataStoreVersionList {
         let versions: Vec<DataStoreRevision> = source.iter().map(|it| it.into()).collect();

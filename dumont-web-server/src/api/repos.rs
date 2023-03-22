@@ -121,7 +121,9 @@ async fn create_repo_impl(
     wrap_body(result)
 }
 
-fn list_repos(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
+fn list_repos(
+    db: crate::Backend,
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo");
     warp::path!("api" / "org" / String / "repo")
         .and(warp::get())

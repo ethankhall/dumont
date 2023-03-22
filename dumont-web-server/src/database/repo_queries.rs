@@ -123,7 +123,7 @@ pub trait RepoQueries {
         pagination: &PaginationOptions,
     ) -> DbResult<Vec<DbRepoModel>>;
 
-    async fn count_repos(&self, org_name: &str) -> DbResult<usize>;
+    async fn count_repos(&self, org_name: &str) -> DbResult<u64>;
 
     async fn delete_repo(&self, repo: &RepoParam<'_>) -> DbResult<bool>;
 }
@@ -208,7 +208,7 @@ impl RepoQueries for PostgresDatabase {
     }
 
     #[instrument(skip(self))]
-    async fn count_repos(&self, org_name: &str) -> DbResult<usize> {
+    async fn count_repos(&self, org_name: &str) -> DbResult<u64> {
         use entity::repository::Column;
         let org = self.sql_get_org(org_name).await?;
         let count = org

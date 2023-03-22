@@ -105,7 +105,7 @@ pub mod prelude {
             }
         }
 
-        pub fn with_page(body: T, total: usize, has_more: bool) -> PaginatedWrapperResponse<T> {
+        pub fn with_page(body: T, total: u64, has_more: bool) -> PaginatedWrapperResponse<T> {
             PaginatedWrapperResponse {
                 data: body,
                 page_options: Some(PaginationState { total, has_more }),
@@ -122,7 +122,7 @@ mod models {
     pub struct PaginationState {
         #[serde(rename = "more")]
         pub has_more: bool,
-        pub total: usize,
+        pub total: u64,
     }
 
     #[derive(Serialize)]

@@ -44,7 +44,7 @@ pub trait RevisionQueries {
         pagination: &PaginationOptions,
     ) -> DbResult<Vec<DbRevisionModel>>;
 
-    async fn count_revisions(&self, repo_param: &RepoParam<'_>) -> DbResult<usize>;
+    async fn count_revisions(&self, repo_param: &RepoParam<'_>) -> DbResult<u64>;
 
     async fn delete_revision(&self, revision_param: &RevisionParam<'_>) -> DbResult<bool>;
 }
@@ -179,7 +179,7 @@ impl RevisionQueries for PostgresDatabase {
     }
 
     #[instrument(skip(self))]
-    async fn count_revisions(&self, repo_param: &RepoParam<'_>) -> DbResult<usize> {
+    async fn count_revisions(&self, repo_param: &RepoParam<'_>) -> DbResult<u64> {
         let repo = self
             .sql_get_repo(repo_param.org_name, repo_param.repo_name)
             .await?;

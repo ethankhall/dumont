@@ -85,11 +85,19 @@ pub struct RunWebServerArgs {
     policy_document: Option<String>,
 
     /// Address to expose the main API on
-    #[clap(long = "server-address", env = "SERVER_ADDRESS", default_value("127.0.0.1:3030"))]
+    #[clap(
+        long = "server-address",
+        env = "SERVER_ADDRESS",
+        default_value("127.0.0.1:3030")
+    )]
     server_address: String,
 
     /// Address to expose the main API on
-    #[clap(long = "admin-address", env = "ADMIN_ADDRESS", default_value("127.0.0.1:3031"))]
+    #[clap(
+        long = "admin-address",
+        env = "ADMIN_ADDRESS",
+        default_value("127.0.0.1:3031")
+    )]
     admin_address: String,
 }
 
@@ -100,7 +108,7 @@ pub struct RunDatabaseMigrationsArgs {
     db_connection_string: String,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), anyhow::Error> {
     human_panic::setup_panic!();
     dotenv::dotenv().ok();
@@ -129,8 +137,8 @@ async fn run_db_migration(args: RunDatabaseMigrationsArgs) -> Result<(), anyhow:
 
 async fn run_webserver(args: RunWebServerArgs) -> Result<(), anyhow::Error> {
     use crate::policy::RealizedPolicyContainer;
-    use warp::Filter;
     use std::net::SocketAddr;
+    use warp::Filter;
 
     let policy_container: RealizedPolicyContainer = match args.policy_document {
         Some(path) => {

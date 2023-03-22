@@ -90,7 +90,7 @@ pub async fn create_org_and_repos<T: ToString>(
 ) -> DbResult<()> {
     db.create_org(org).await.unwrap();
     for repo in repos {
-        create_repo(db, org, repo).await.unwrap();
+        create_repo(db, org, &repo.to_string()).await.unwrap();
     }
 
     Ok(())
