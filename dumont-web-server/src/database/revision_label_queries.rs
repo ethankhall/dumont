@@ -1,7 +1,7 @@
 use crate::database::{
     entity::{self, prelude::*},
     revision_queries::{models::RevisionParam, RevisionQueries},
-    DbResult, PostgresDatabase,
+    BackendDatabase, DbResult,
 };
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
@@ -71,7 +71,7 @@ pub mod models {
 use models::*;
 
 #[async_trait]
-impl RevisionLabelQueries for PostgresDatabase {
+impl RevisionLabelQueries for BackendDatabase {
     #[instrument(skip(self))]
     async fn sql_get_revision_labels(
         &self,
@@ -113,7 +113,7 @@ impl RevisionLabelQueries for PostgresDatabase {
                 revision_id: Set(revision_id),
                 label_name: Set(key.to_string()),
                 label_value: Set(value.to_string()),
-                created_at: Set(self.date_time_provider.now().naive_utc()),
+                created_at: Set(self.date_time_provider.now()),
                 ..Default::default()
             })
         }
@@ -178,12 +178,14 @@ mod integ_test {
     #[serial]
     async fn test_creating_revision_labels() {
         // let _logging = logging_setup();
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
-        create_org_and_repos(&db, "foo", vec!["bar"]).await.unwrap();
+        db.create_test_org_and_repos("foo", vec!["bar"])
+            .await
+            .unwrap();
 
         let revision = db
             .create_revision(
@@ -207,12 +209,14 @@ mod integ_test {
     #[serial]
     async fn test_updating_revision_labels() {
         // let _logging = logging_setup();
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
-        create_org_and_repos(&db, "foo", vec!["bar"]).await.unwrap();
+        db.create_test_org_and_repos("foo", vec!["bar"])
+            .await
+            .unwrap();
 
         let param = RevisionParam::new("foo", "bar", "1.2.3");
 

@@ -1,7 +1,7 @@
 use crate::backend::models::PaginationOptions;
 use crate::database::{
     entity::{self, prelude::*},
-    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
+    AlreadyExistsError, BackendDatabase, DatabaseError, DbResult, NotFoundError,
 };
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
@@ -66,12 +66,12 @@ pub trait OrganizationQueries {
     async fn find_org(&self, org_name: &str) -> DbResult<DbOrganizationModel>;
     async fn list_orgs(&self, pagination: &PaginationOptions)
         -> DbResult<Vec<DbOrganizationModel>>;
-    async fn count_orgs(&self) -> DbResult<usize>;
+    async fn count_orgs(&self) -> DbResult<u64>;
     async fn delete_org(&self, org_name: &str) -> DbResult<bool>;
 }
 
 #[async_trait]
-impl OrganizationQueries for PostgresDatabase {
+impl OrganizationQueries for BackendDatabase {
     #[instrument(skip(self))]
     async fn create_org(&self, org_name: &str) -> DbResult<DbOrganizationModel> {
         use entity::organization::ActiveModel;
@@ -119,7 +119,7 @@ impl OrganizationQueries for PostgresDatabase {
     }
 
     #[instrument(skip(self))]
-    async fn count_orgs(&self) -> DbResult<usize> {
+    async fn count_orgs(&self) -> DbResult<u64> {
         let resp = Organization::find().count(&self.db).await?;
 
         Ok(resp)
@@ -190,7 +190,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_orgs() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -238,7 +238,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_org_pagination() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -250,15 +250,15 @@ mod integ_test {
         let found_orgs = db.list_orgs(&PaginationOptions::new(0, 50)).await.unwrap();
         assert_eq!(found_orgs.len(), 50);
 
-        for i in 0..50 {
-            assert_eq!(found_orgs[i].org_name, format!("org-{}", i));
+        for (i, item) in found_orgs.iter().enumerate().take(50) {
+            assert_eq!(item.org_name, format!("org-{}", i));
         }
 
         let found_orgs = db.list_orgs(&PaginationOptions::new(1, 50)).await.unwrap();
         assert_eq!(found_orgs.len(), 50);
 
-        for i in 0..50 {
-            assert_eq!(found_orgs[i].org_name, format!("org-{}", i + 50));
+        for (i, item) in found_orgs.iter().enumerate().take(50) {
+            assert_eq!(item.org_name, format!("org-{}", i + 50));
         }
 
         let found_orgs = db.list_orgs(&PaginationOptions::new(2, 50)).await.unwrap();

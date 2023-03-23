@@ -3,7 +3,7 @@ use crate::database::{
     entity::{self, prelude::*},
     repo_queries::{models::RepoParam, RepoQueries},
     revision_label_queries::RevisionLabelQueries,
-    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
+    AlreadyExistsError, BackendDatabase, DatabaseError, DbResult, NotFoundError,
 };
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
@@ -44,7 +44,7 @@ pub trait RevisionQueries {
         pagination: &PaginationOptions,
     ) -> DbResult<Vec<DbRevisionModel>>;
 
-    async fn count_revisions(&self, repo_param: &RepoParam<'_>) -> DbResult<usize>;
+    async fn count_revisions(&self, repo_param: &RepoParam<'_>) -> DbResult<u64>;
 
     async fn delete_revision(&self, revision_param: &RevisionParam<'_>) -> DbResult<bool>;
 }
@@ -104,7 +104,7 @@ pub mod models {
 use models::*;
 
 #[async_trait]
-impl RevisionQueries for PostgresDatabase {
+impl RevisionQueries for BackendDatabase {
     #[instrument(skip(self))]
     async fn create_revision(
         &self,
@@ -133,7 +133,7 @@ impl RevisionQueries for PostgresDatabase {
         let model = entity::repository_revision::ActiveModel {
             repo_id: Set(repo.repo_id),
             revision_name: Set(revision_param.revision.to_string()),
-            created_at: Set(self.date_time_provider.now().naive_utc()),
+            created_at: Set(self.date_time_provider.now()),
             artifact_url: Set(create_revision_param.artifact_url.map(|s| s.to_string())),
             ..Default::default()
         };
@@ -179,7 +179,7 @@ impl RevisionQueries for PostgresDatabase {
     }
 
     #[instrument(skip(self))]
-    async fn count_revisions(&self, repo_param: &RepoParam<'_>) -> DbResult<usize> {
+    async fn count_revisions(&self, repo_param: &RepoParam<'_>) -> DbResult<u64> {
         let repo = self
             .sql_get_repo(repo_param.org_name, repo_param.repo_name)
             .await?;
@@ -277,13 +277,13 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_revision_create() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
         db.create_org("foo").await.unwrap();
-        create_repo(&db, "foo", "bar").await.unwrap();
+        db.create_test_repo("foo", "bar").await.unwrap();
 
         let revision = db
             .create_revision(
@@ -304,13 +304,13 @@ mod integ_test {
     #[serial]
     async fn test_duplicate_version() {
         // let _logging = logging_setup();
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
         db.create_org("foo").await.unwrap();
-        create_repo(&db, "foo", "bar").await.unwrap();
+        db.create_test_repo("foo", "bar").await.unwrap();
 
         let revision = db
             .create_revision(
@@ -345,15 +345,15 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_delete_revision() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
-        create_org_and_repos(&db, "example", vec!["example-repo-1"])
+        db.create_test_org_and_repos("example", vec!["example-repo-1"])
             .await
             .unwrap();
-        create_test_version(&db, "example", "example-repo-1", "1.2.3")
+        db.create_test_version("example", "example-repo-1", "1.2.3")
             .await
             .unwrap();
 

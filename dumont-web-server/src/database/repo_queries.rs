@@ -3,7 +3,7 @@ use crate::database::{
     entity::{self, prelude::*},
     org_queries::OrganizationQueries,
     repo_label_queries::RepoLabelQueries,
-    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
+    AlreadyExistsError, BackendDatabase, DatabaseError, DbResult, NotFoundError,
 };
 use async_trait::async_trait;
 use futures_util::future::join_all;
@@ -123,13 +123,13 @@ pub trait RepoQueries {
         pagination: &PaginationOptions,
     ) -> DbResult<Vec<DbRepoModel>>;
 
-    async fn count_repos(&self, org_name: &str) -> DbResult<usize>;
+    async fn count_repos(&self, org_name: &str) -> DbResult<u64>;
 
     async fn delete_repo(&self, repo: &RepoParam<'_>) -> DbResult<bool>;
 }
 
 #[async_trait]
-impl RepoQueries for PostgresDatabase {
+impl RepoQueries for BackendDatabase {
     #[instrument(skip(self))]
     async fn create_repo(
         &self,
@@ -159,7 +159,7 @@ impl RepoQueries for PostgresDatabase {
         let model = repository::ActiveModel {
             org_id: Set(org.org_id),
             repo_name: Set(repo_name),
-            created_at: Set(self.date_time_provider.now().naive_utc()),
+            created_at: Set(self.date_time_provider.now()),
             ..Default::default()
         };
 
@@ -208,7 +208,7 @@ impl RepoQueries for PostgresDatabase {
     }
 
     #[instrument(skip(self))]
-    async fn count_repos(&self, org_name: &str) -> DbResult<usize> {
+    async fn count_repos(&self, org_name: &str) -> DbResult<u64> {
         use entity::repository::Column;
         let org = self.sql_get_org(org_name).await?;
         let count = org
@@ -322,7 +322,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_repos() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -397,7 +397,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_repo_pagination() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -422,8 +422,8 @@ mod integ_test {
             .unwrap();
         assert_eq!(found_repos.len(), 50);
 
-        for i in 0..50 {
-            assert_eq!(found_repos[i].repo_name, format!("repo-{}", i));
+        for (i, item) in found_repos.iter().enumerate().take(50) {
+            assert_eq!(item.repo_name, format!("repo-{}", i));
         }
 
         let found_repos = db
@@ -432,8 +432,8 @@ mod integ_test {
             .unwrap();
         assert_eq!(found_repos.len(), 50);
 
-        for i in 0..50 {
-            assert_eq!(found_repos[i].repo_name, format!("repo-{}", i + 50));
+        for (i, item) in found_repos.iter().enumerate().take(50) {
+            assert_eq!(item.repo_name, format!("repo-{}", i + 50));
         }
 
         let found_repos = db.list_orgs(&&PaginationOptions::new(2, 50)).await.unwrap();
@@ -443,7 +443,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_delete_repo() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };

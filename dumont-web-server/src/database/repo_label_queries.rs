@@ -1,7 +1,7 @@
 use crate::database::{
     entity::{self, prelude::*},
     repo_queries::{RepoParam, RepoQueries},
-    DbResult, PostgresDatabase,
+    BackendDatabase, DbResult,
 };
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
@@ -74,7 +74,7 @@ pub trait RepoLabelQueries {
 }
 
 #[async_trait]
-impl RepoLabelQueries for PostgresDatabase {
+impl RepoLabelQueries for BackendDatabase {
     #[instrument(skip(self))]
     async fn get_repo_labels(&self, repo_param: &RepoParam<'_>) -> DbResult<RepoLabels> {
         let repo = self
@@ -111,7 +111,7 @@ impl RepoLabelQueries for PostgresDatabase {
                 repo_id: Set(repo_id),
                 label_name: Set(key.to_string()),
                 label_value: Set(value.to_string()),
-                created_at: Set(self.date_time_provider.now().naive_utc()),
+                created_at: Set(self.date_time_provider.now()),
                 ..Default::default()
             })
         }
@@ -170,14 +170,13 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn update_labels() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
 
         db.create_org("foo").await.unwrap();
-        create_repo_with_params(
-            &db,
+        db.create_test_repo_with_params(
             "foo",
             "bar",
             CreateRepoParam {

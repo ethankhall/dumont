@@ -7,7 +7,7 @@ use warp::{Filter, Reply};
 
 pub async fn create_filters(
     db: crate::Backend,
-) -> impl Filter<Extract = impl Reply> + Clone + Send + Sync + 'static {
+) -> impl Filter<Extract = (impl Reply,)> + Clone + Send + Sync + 'static {
     filters::api(db)
         .recover(canned_response::handle_rejection)
         .with(warp::trace::request())
@@ -72,8 +72,8 @@ pub mod prelude {
     impl From<ApiPagination> for PaginationOptions {
         fn from(source: ApiPagination) -> Self {
             Self {
-                page_number: source.page.unwrap_or(0) as usize,
-                page_size: source.size.unwrap_or(50) as usize,
+                page_number: source.page.unwrap_or(0) as u64,
+                page_size: source.size.unwrap_or(50) as u64,
             }
         }
     }
@@ -105,7 +105,7 @@ pub mod prelude {
             }
         }
 
-        pub fn with_page(body: T, total: usize, has_more: bool) -> PaginatedWrapperResponse<T> {
+        pub fn with_page(body: T, total: u64, has_more: bool) -> PaginatedWrapperResponse<T> {
             PaginatedWrapperResponse {
                 data: body,
                 page_options: Some(PaginationState { total, has_more }),
@@ -122,7 +122,7 @@ mod models {
     pub struct PaginationState {
         #[serde(rename = "more")]
         pub has_more: bool,
-        pub total: usize,
+        pub total: u64,
     }
 
     #[derive(Serialize)]
@@ -213,7 +213,9 @@ mod models {
 mod filters {
     use warp::{Filter, Rejection, Reply};
 
-    pub fn api(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    pub fn api(
+        db: crate::Backend,
+    ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
         super::orgs::create_org_api(db.clone())
             .or(super::repos::create_repo_api(db.clone()))
             .or(super::versions::create_version_api(db))
