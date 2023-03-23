@@ -88,7 +88,7 @@ pub struct UpdateRepository {
 
 pub fn create_repo_api(
     db: crate::Backend,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     create_repo(db.clone())
         .or(list_repos(db.clone()))
         .or(get_repo(db.clone()))
@@ -96,7 +96,9 @@ pub fn create_repo_api(
         .or(update_repo(db))
 }
 
-fn create_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn create_repo(
+    db: crate::Backend,
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("POST /api/org/{{org}}/repo");
     warp::path!("api" / "org" / String / "repo")
         .and(warp::post())
@@ -119,7 +121,9 @@ async fn create_repo_impl(
     wrap_body(result)
 }
 
-fn list_repos(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn list_repos(
+    db: crate::Backend,
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo");
     warp::path!("api" / "org" / String / "repo")
         .and(warp::get())
@@ -150,7 +154,7 @@ async fn list_repos_impl(
     wrap_body(result)
 }
 
-fn get_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn get_repo(db: crate::Backend) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("GET /api/org/{{org}}/repo/{{repo}}");
     warp::path!("api" / "org" / String / "repo" / String)
         .and(warp::get())
@@ -172,7 +176,9 @@ async fn get_repo_impl(
     wrap_body(result)
 }
 
-fn delete_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn delete_repo(
+    db: crate::Backend,
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("DELETE /api/org/{{org}}/repo/{{repo}}");
     warp::path!("api" / "org" / String / "repo" / String)
         .and(warp::delete())
@@ -194,7 +200,9 @@ async fn delete_repo_impl(
     wrap_body(result)
 }
 
-fn update_repo(db: crate::Backend) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn update_repo(
+    db: crate::Backend,
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     info!("PUT /api/org/{{org}}/repo/{{repo}}");
     warp::path!("api" / "org" / String / "repo" / String)
         .and(warp::put())
@@ -230,11 +238,11 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_create_repo() {
-        let (backend, db) = make_db().await;
+        let backend = make_backend().await;
         let filter =
-            create_repo_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+            create_repo_api(backend.clone()).recover(crate::api::canned_response::handle_rejection);
 
-        backend.create_org("example").await.unwrap();
+        backend.database.create_org("example").await.unwrap();
 
         let response = request()
             .path("/api/org/example/repo")
@@ -263,19 +271,21 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_list_repos() {
-        let (backend, db) = make_db().await;
+        let backend = make_backend().await;
         let filter =
-            create_repo_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+            create_repo_api(backend.clone()).recover(crate::api::canned_response::handle_rejection);
 
         let mut create_repo = Vec::new();
         let mut api_repo = Vec::new();
         for i in 0..100 {
-            create_repo.push(format!("example-repo-{}", i));
+            let tmp = format!("example-repo-{}", i);
+            create_repo.push(tmp);
             api_repo
                 .push(object! {"org":"example","repo":format!("example-repo-{}", i),"labels":{}});
         }
 
-        create_org_and_repos(&backend, "example", create_repo)
+        backend
+            .create_test_org_and_repos("example", create_repo.iter().map(|x| x.as_str()).collect())
             .await
             .unwrap();
 
@@ -309,21 +319,21 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_update_labels() {
-        let (backend, db) = make_db().await;
+        let backend = make_backend().await;
         let filter =
-            create_repo_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+            create_repo_api(backend.clone()).recover(crate::api::canned_response::handle_rejection);
 
-        backend.create_org("example").await.unwrap();
-        create_repo_with_params(
-            &backend,
-            "example",
-            "example-repo-1",
-            CreateRepoParam {
-                labels: vec![("scm_url", "https://github.com/example/example-repo-1")].into(),
-            },
-        )
-        .await
-        .unwrap();
+        backend.database.create_org("example").await.unwrap();
+        backend
+            .create_test_repo_with_params(
+                "example",
+                "example-repo-1",
+                CreateRepoParam {
+                    labels: vec![("scm_url", "https://github.com/example/example-repo-1")].into(),
+                },
+            )
+            .await
+            .unwrap();
 
         let response = request()
             .path("/api/org/example/repo/example-repo-1")
@@ -385,23 +395,24 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_delete_repo() {
-        let (backend, db) = make_db().await;
+        let backend = make_backend().await;
         let filter =
-            create_repo_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+            create_repo_api(backend.clone()).recover(crate::api::canned_response::handle_rejection);
 
-        backend.create_org("example").await.unwrap();
-        create_repo_with_params(
-            &backend,
-            "example",
-            "example-repo-1",
-            CreateRepoParam {
-                labels: vec![("scm_url", "https://github.com/example/example-repo-1")].into(),
-            },
-        )
-        .await
-        .unwrap();
+        backend.database.create_org("example").await.unwrap();
+        backend
+            .create_test_repo_with_params(
+                "example",
+                "example-repo-1",
+                CreateRepoParam {
+                    labels: vec![("scm_url", "https://github.com/example/example-repo-1")].into(),
+                },
+            )
+            .await
+            .unwrap();
 
         backend
+            .database
             .create_revision(
                 &RevisionParam::new("example", "example-repo-1", "1.2.3"),
                 &CreateRevisionParam {
@@ -441,11 +452,11 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_get_non_existent_repo() {
-        let (backend, db) = make_db().await;
+        let backend = make_backend().await;
         let filter =
-            create_repo_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+            create_repo_api(backend.clone()).recover(crate::api::canned_response::handle_rejection);
 
-        backend.create_org("example").await.unwrap();
+        backend.database.create_org("example").await.unwrap();
 
         let response = request()
             .path("/api/org/example/repo/example-repo-1")

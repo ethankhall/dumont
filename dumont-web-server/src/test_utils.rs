@@ -1,62 +1,63 @@
 use crate::database::prelude::*;
-pub use sea_orm::{entity::*, query::*, Database, DatabaseConnection, DbBackend};
-use sqlx::postgres::PgPoolOptions;
+use async_trait::async_trait;
+pub use sea_orm::{entity::*, query::*, Database, DatabaseConnection, DbBackend, Schema};
 use std::sync::Arc;
 
-pub async fn make_db() -> (PostgresDatabase, crate::Backend) {
-    setup_schema().await.unwrap();
-    let db = PostgresDatabase {
-        db: Database::connect(&get_db_url_with_test_db()).await.unwrap(),
+pub async fn make_backend() -> crate::Backend {
+    let db = setup_schema().await.unwrap();
+    let db_backend = BackendDatabase {
+        db,
         date_time_provider: DateTimeProvider::RealDateTime,
     };
-    let backend = Arc::new(crate::backend::DefaultBackend {
-        database: db,
+
+    Arc::new(crate::backend::DefaultBackend {
+        database: db_backend,
         policy_container: Default::default(),
-    });
-    let db = PostgresDatabase {
-        db: Database::connect(&get_db_url_with_test_db()).await.unwrap(),
-        date_time_provider: DateTimeProvider::RealDateTime,
-    };
-    (db, backend)
+    })
 }
 
 pub async fn setup_schema() -> DbResult<DatabaseConnection> {
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&get_db_host_url())
-        .await?;
+    use crate::database::prelude::*;
+    let db = Database::connect("sqlite::memory:").await?;
 
-    let mut conn = pool.acquire().await?;
+    // Setup Schema helper
+    let schema = Schema::new(DbBackend::Sqlite);
 
-    sqlx::query!("DROP DATABASE IF EXISTS postgres_test")
-        .execute(&mut conn)
-        .await?;
+    // Derive from Entity
+    db.execute(
+        db.get_database_backend()
+            .build(&schema.create_table_from_entity(Organization)),
+    )
+    .await?;
 
-    sqlx::query!("CREATE DATABASE postgres_test")
-        .execute(&mut conn)
-        .await?;
+    db.execute(
+        db.get_database_backend()
+            .build(&schema.create_table_from_entity(Repository)),
+    )
+    .await?;
 
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&get_db_url_with_test_db())
-        .await?;
+    db.execute(
+        db.get_database_backend()
+            .build(&schema.create_table_from_entity(RepositoryLabel)),
+    )
+    .await?;
 
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    db.execute(
+        db.get_database_backend()
+            .build(&schema.create_table_from_entity(RepositoryRevision)),
+    )
+    .await?;
 
-    Ok(Database::connect(&get_db_url_with_test_db()).await?)
-}
-
-fn get_db_host_url() -> String {
-    let host = std::env::var("TEST_DB_HOST").unwrap_or("127.0.0.1".to_owned());
-    format!("postgresql://postgres:password@{}:5432", host)
-}
-
-fn get_db_url_with_test_db() -> String {
-    format!("{}/postgres_test", get_db_host_url())
+    db.execute(
+        db.get_database_backend()
+            .build(&schema.create_table_from_entity(RepositoryRevisionLabel)),
+    )
+    .await?;
+    Ok(db)
 }
 
 #[allow(dead_code)]
-pub fn logging_setup() -> () {
+pub fn logging_setup() {
     use tracing::level_filters::LevelFilter;
     use tracing_subscriber::{
         fmt::format::{Format, PrettyFields},
@@ -68,65 +69,101 @@ pub fn logging_setup() -> () {
         .event_format(Format::default().pretty())
         .fmt_fields(PrettyFields::new());
 
-    let subscriber = Registry::default()
-        .with(LevelFilter::from(LevelFilter::DEBUG))
-        .with(logger);
+    let subscriber = Registry::default().with(LevelFilter::DEBUG).with(logger);
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     tracing_log::LogTracer::init().expect("logging to work correctly")
 }
 
-pub async fn create_repo(db: &PostgresDatabase, org: &str, repo: &str) -> DbResult<()> {
-    create_repo_with_params(db, org, repo, CreateRepoParam::default())
-        .await
-        .unwrap();
+pub trait SimpleString: ToString {}
 
-    Ok(())
+#[async_trait]
+pub trait TestBackend {
+    async fn create_test_repo(&self, org: &str, repo: &str) -> DbResult<()>;
+    async fn create_test_repo_with_params(
+        &self,
+        org: &str,
+        repo: &str,
+        create_param: CreateRepoParam,
+    ) -> DbResult<()>;
+
+    async fn create_test_version(&self, org: &str, repo: &str, version: &str) -> DbResult<()>;
+
+    async fn create_test_org_and_repos(&self, org: &str, repos: Vec<&str>) -> DbResult<()>;
 }
 
-pub async fn create_org_and_repos<T: ToString>(
-    db: &PostgresDatabase,
-    org: &str,
-    repos: Vec<T>,
-) -> DbResult<()> {
-    db.create_org(org).await.unwrap();
-    for repo in repos {
-        create_repo(&db, org, &repo.to_string()).await.unwrap();
+#[async_trait]
+impl TestBackend for crate::Backend {
+    async fn create_test_repo(&self, org: &str, repo: &str) -> DbResult<()> {
+        self.database.create_test_repo(org, repo).await
     }
 
-    Ok(())
+    async fn create_test_repo_with_params(
+        &self,
+        org: &str,
+        repo: &str,
+        create_param: CreateRepoParam,
+    ) -> DbResult<()> {
+        self.database
+            .create_test_repo_with_params(org, repo, create_param)
+            .await
+    }
+
+    async fn create_test_version(&self, org: &str, repo: &str, version: &str) -> DbResult<()> {
+        self.database.create_test_version(org, repo, version).await
+    }
+
+    async fn create_test_org_and_repos(&self, org: &str, repos: Vec<&str>) -> DbResult<()> {
+        self.database.create_test_org_and_repos(org, repos).await
+    }
 }
 
-pub async fn create_test_version(
-    db: &PostgresDatabase,
-    org: &str,
-    repo: &str,
-    version: &str,
-) -> DbResult<()> {
-    db.create_revision(
-        &RevisionParam::new(org, repo, version),
-        &CreateRevisionParam {
-            artifact_url: None,
-            labels: vec![("version", version)].into(),
-        },
-    )
-    .await
-    .unwrap();
+#[async_trait]
+impl TestBackend for BackendDatabase {
+    async fn create_test_repo(&self, org: &str, repo: &str) -> DbResult<()> {
+        self.create_test_repo_with_params(org, repo, CreateRepoParam::default())
+            .await
+            .unwrap();
 
-    Ok(())
-}
-pub async fn create_repo_with_params(
-    db: &PostgresDatabase,
-    org: &str,
-    repo: &str,
-    create_param: CreateRepoParam,
-) -> DbResult<()> {
-    db.create_repo(&RepoParam::new(org, repo), create_param)
+        Ok(())
+    }
+
+    async fn create_test_repo_with_params(
+        &self,
+        org: &str,
+        repo: &str,
+        create_param: CreateRepoParam,
+    ) -> DbResult<()> {
+        self.create_repo(&RepoParam::new(org, repo), create_param)
+            .await
+            .unwrap();
+
+        Ok(())
+    }
+
+    async fn create_test_version(&self, org: &str, repo: &str, version: &str) -> DbResult<()> {
+        self.create_revision(
+            &RevisionParam::new(org, repo, version),
+            &CreateRevisionParam {
+                artifact_url: None,
+                labels: vec![("version", version)].into(),
+            },
+        )
         .await
         .unwrap();
 
-    Ok(())
+        Ok(())
+    }
+
+    async fn create_test_org_and_repos(&self, org: &str, repos: Vec<&str>) -> DbResult<()> {
+        self.create_org(org).await.unwrap();
+        for repo in repos {
+            self.create_test_repo(org, repo).await.unwrap();
+        }
+
+        Ok(())
+    }
 }
 
 pub fn assert_200_response(response: http::Response<bytes::Bytes>, expected_body: json::JsonValue) {

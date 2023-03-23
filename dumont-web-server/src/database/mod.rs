@@ -82,12 +82,12 @@ impl DateTimeProvider {
 }
 
 #[derive(Debug)]
-pub struct PostgresDatabase {
+pub struct BackendDatabase {
     pub db: DatabaseConnection,
     pub date_time_provider: DateTimeProvider,
 }
 
-impl PostgresDatabase {
+impl BackendDatabase {
     pub async fn new<S: Into<String>>(connection_url: S) -> prelude::DbResult<Self> {
         use std::time::Duration;
 
@@ -115,7 +115,7 @@ pub mod prelude {
     pub use super::revision_queries::{models::*, RevisionQueries};
     pub use super::DbResult;
     pub use super::{
-        AlreadyExistsError, DatabaseError, DateTimeProvider, NotFoundError, PostgresDatabase,
+        AlreadyExistsError, BackendDatabase, DatabaseError, DateTimeProvider, NotFoundError,
     };
     pub use thiserror::Error;
 }

@@ -14,9 +14,22 @@ spec:
       labels:
         app: postgres
     spec:
+      initContainers:
+        - command:
+            - chown
+            - -R
+            - "1001"
+            - /bitnami/postgresql/
+          image: public.ecr.aws/docker/library/alpine:3
+          imagePullPolicy: IfNotPresent
+          name: take-data-dir-ownership
+          volumeMounts:
+            - mountPath: /bitnami/postgresql/data
+              name: postgredb
+              subPath: postgres
       containers:
       - name: postgres
-        image: postgres:latest
+        image: public.ecr.aws/bitnami/postgresql:13
         envFrom:
           - configMapRef:
               name: postgres-config
