@@ -23,6 +23,8 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
 
 FROM builder as test
+ARG TEST_DB_HOST
+ENV TEST_DB_HOST $(TEST_DB_HOST)
 RUN <<EOT
 #!/usr/bin/env bash
 set -euxo pipefail
@@ -32,6 +34,18 @@ rustup component add rustfmt clippy
 cargo test --release
 cargo fmt --check
 cargo clippy --release
+EOT
+
+FROM builder as dep_check
+RUN rustup toolchain install nightly --allow-downgrade --profile minimal
+
+RUN <<EOT
+#!/usr/bin/env bash
+set -euxo pipefail
+
+cargo +nightly build --release
+cargo +nightly install cargo-udeps --locked
+cargo +nightly udeps --release
 EOT
 
 FROM scratch as check

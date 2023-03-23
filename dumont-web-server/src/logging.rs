@@ -89,7 +89,7 @@ pub fn configure_logging(logging_opts: &LoggingOpts, runtime_args: &RuntimeArgs)
             trace::config()
                 .with_sampler(Sampler::AlwaysOn)
                 .with_id_generator(RandomIdGenerator::default())
-                .with_max_events_per_span(4096)
+                .with_max_events_per_span(256)
                 .with_max_attributes_per_span(256)
                 .with_max_events_per_span(256)
                 .with_resource(Resource::new(vec![KeyValue::new("service.name", "dumont")])),
