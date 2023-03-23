@@ -256,11 +256,12 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_create_version() {
-        let (backend, db) = make_db().await;
-        let filter =
-            create_version_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let backend = make_backend().await;
+        let filter = create_version_api(backend.clone())
+            .recover(crate::api::canned_response::handle_rejection);
 
-        create_org_and_repos(&backend, "example", vec!["example-repo-1"])
+        backend
+            .create_test_org_and_repos("example", vec!["example-repo-1"])
             .await
             .unwrap();
 
@@ -290,14 +291,16 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_delete_version() {
-        let (backend, db) = make_db().await;
-        let filter =
-            create_version_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let backend = make_backend().await;
+        let filter = create_version_api(backend.clone())
+            .recover(crate::api::canned_response::handle_rejection);
 
-        create_org_and_repos(&backend, "example", vec!["example-repo-1"])
+        backend
+            .create_test_org_and_repos("example", vec!["example-repo-1"])
             .await
             .unwrap();
-        create_test_version(&backend, "example", "example-repo-1", "1.2.3")
+        backend
+            .create_test_version("example", "example-repo-1", "1.2.3")
             .await
             .unwrap();
 
@@ -315,6 +318,7 @@ mod integ_test {
         );
 
         let revisions = backend
+            .database
             .list_revisions(
                 &RepoParam::new("example", "example-repo-1"),
                 &PaginationOptions::new(0, 50),
@@ -327,11 +331,12 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_update_version_label() {
-        let (backend, db) = make_db().await;
-        let filter =
-            create_version_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let backend = make_backend().await;
+        let filter = create_version_api(backend.clone())
+            .recover(crate::api::canned_response::handle_rejection);
 
-        create_org_and_repos(&backend, "example", vec!["example-repo-1"])
+        backend
+            .create_test_org_and_repos("example", vec!["example-repo-1"])
             .await
             .unwrap();
 
@@ -382,15 +387,17 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_listing_versions() {
-        let (backend, db) = make_db().await;
-        let filter =
-            create_version_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let backend = make_backend().await;
+        let filter = create_version_api(backend.clone())
+            .recover(crate::api::canned_response::handle_rejection);
 
-        create_org_and_repos(&backend, "example", vec!["example-repo-1"])
+        backend
+            .create_test_org_and_repos("example", vec!["example-repo-1"])
             .await
             .unwrap();
         for i in 1..100 {
-            create_test_version(&backend, "example", "example-repo-1", &format!("1.2.{}", i))
+            backend
+                .create_test_version("example", "example-repo-1", &format!("1.2.{}", i))
                 .await
                 .unwrap()
         }
@@ -446,11 +453,12 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_create_version_that_will_be_rejected() {
-        let (backend, db) = make_db().await;
-        let filter =
-            create_version_api(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let backend = make_backend().await;
+        let filter = create_version_api(backend.clone())
+            .recover(crate::api::canned_response::handle_rejection);
 
-        create_org_and_repos(&backend, "example", vec!["example-repo-1"])
+        backend
+            .create_test_org_and_repos("example", vec!["example-repo-1"])
             .await
             .unwrap();
 

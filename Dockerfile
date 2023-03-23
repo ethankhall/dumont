@@ -23,8 +23,6 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
 
 FROM builder as test
-ARG TEST_DB_HOST
-ENV TEST_DB_HOST $(TEST_DB_HOST)
 RUN <<EOT
 #!/usr/bin/env bash
 set -euxo pipefail

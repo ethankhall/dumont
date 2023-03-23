@@ -1,7 +1,7 @@
 use crate::backend::models::PaginationOptions;
 use crate::database::{
     entity::{self, prelude::*},
-    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
+    AlreadyExistsError, BackendDatabase, DatabaseError, DbResult, NotFoundError,
 };
 use async_trait::async_trait;
 use sea_orm::{entity::*, query::*};
@@ -71,7 +71,7 @@ pub trait OrganizationQueries {
 }
 
 #[async_trait]
-impl OrganizationQueries for PostgresDatabase {
+impl OrganizationQueries for BackendDatabase {
     #[instrument(skip(self))]
     async fn create_org(&self, org_name: &str) -> DbResult<DbOrganizationModel> {
         use entity::organization::ActiveModel;
@@ -190,7 +190,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_orgs() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -238,7 +238,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_org_pagination() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };

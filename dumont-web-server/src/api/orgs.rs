@@ -143,8 +143,8 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_create_org() {
-        let (_backend, db) = make_db().await;
-        let filter = create_org(db.clone());
+        let backend = make_backend().await;
+        let filter = create_org(backend.clone());
 
         let response = request()
             .path("/api/org")
@@ -161,8 +161,9 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_duplicate_org() {
-        let (_backend, db) = make_db().await;
-        let filter = create_org(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let backend = make_backend().await;
+        let filter =
+            create_org(backend.clone()).recover(crate::api::canned_response::handle_rejection);
 
         let response = request()
             .path("/api/org")
@@ -194,8 +195,9 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_list_org() {
-        let (_backend, db) = make_db().await;
-        let filter = create_org(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let backend = make_backend().await;
+        let filter =
+            create_org(backend.clone()).recover(crate::api::canned_response::handle_rejection);
 
         let response = request()
             .path("/api/org")
@@ -219,7 +221,8 @@ mod integ_test {
 
         assert_200_response(response, object! {"org":  "example-org-2"});
 
-        let filter = list_orgs(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let filter =
+            list_orgs(backend.clone()).recover(crate::api::canned_response::handle_rejection);
 
         let response = request()
             .path("/api/org")
@@ -238,8 +241,9 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_delete_org() {
-        let (_backend, db) = make_db().await;
-        let filter = create_org(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let backend = make_backend().await;
+        let filter =
+            create_org(backend.clone()).recover(crate::api::canned_response::handle_rejection);
 
         let response = request()
             .path("/api/org")
@@ -252,7 +256,8 @@ mod integ_test {
 
         assert_200_response(response, object! {"org":  "example-org"});
 
-        let filter = delete_org(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let filter =
+            delete_org(backend.clone()).recover(crate::api::canned_response::handle_rejection);
         let response = request()
             .path("/api/org/example-org")
             .method("DELETE")
@@ -266,7 +271,8 @@ mod integ_test {
             },
         );
 
-        let filter = list_orgs(db.clone()).recover(crate::api::canned_response::handle_rejection);
+        let filter =
+            list_orgs(backend.clone()).recover(crate::api::canned_response::handle_rejection);
 
         let response = request()
             .path("/api/org")

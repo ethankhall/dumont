@@ -3,7 +3,7 @@ use crate::database::{
     entity::{self, prelude::*},
     org_queries::OrganizationQueries,
     repo_label_queries::RepoLabelQueries,
-    AlreadyExistsError, DatabaseError, DbResult, NotFoundError, PostgresDatabase,
+    AlreadyExistsError, BackendDatabase, DatabaseError, DbResult, NotFoundError,
 };
 use async_trait::async_trait;
 use futures_util::future::join_all;
@@ -129,7 +129,7 @@ pub trait RepoQueries {
 }
 
 #[async_trait]
-impl RepoQueries for PostgresDatabase {
+impl RepoQueries for BackendDatabase {
     #[instrument(skip(self))]
     async fn create_repo(
         &self,
@@ -322,7 +322,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_repos() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -397,7 +397,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_repo_pagination() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -443,7 +443,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn test_delete_repo() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };

@@ -10,16 +10,6 @@ jobs:
   check:
     name: Run Validations
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_PASSWORD: postgres
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v2
       - name: Set up Docker Buildx
@@ -36,7 +26,6 @@ jobs:
             --cache-from type=registry,ref=ghcr.io/ethankhall/dumont-cache \
             --cache-from type=registry,ref=ghcr.io/ethankhall/dumont-cache:validate \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
-            --build-arg TEST_DB_HOST=postgres \
             --target check .
 
   create-release:

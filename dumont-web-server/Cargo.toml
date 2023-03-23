@@ -19,7 +19,6 @@ thiserror = "1.0"
 anyhow = "1.0"
 sea-query = "0.28"
 sea-orm = { version = "0.11", features = [ "sqlx-postgres", "runtime-tokio-rustls", "macros" ] }
-semver = "1"
 tracing-subscriber = { version = "0.3", features = ["registry", "json"] }
 tracing-opentelemetry = "0.18"
 tracing-core = "0.1"
@@ -28,9 +27,6 @@ tracing = "0.1"
 tracing-attributes = "0.1"
 opentelemetry = { version = "0.18", features = ["rt-tokio", "metrics"] }
 opentelemetry-otlp = { version = "0.11", features = ["metrics"] }
-strum_macros = "0.24"
-strum = "0.24"
-refinery = { version = "0.8", features = ["postgres"]}
 atty = "0.2"
 human-panic = "1.1"
 sqlx = { version = "0.6", features = [ "postgres", "migrate" ] }
@@ -39,11 +35,11 @@ prometheus = "0.13.0"
 futures-util = "0.3"
 regex = "1"
 toml = "*"
-derive_more = "0.99"
 derivative = "2.2"
 
 [dev-dependencies]
 sea-orm = { version = "0.11", features = [ "sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls", "macros" ] }
+sqlx = { version = "0.6", features = [ "postgres", "sqlite", "migrate" ] }
 serial_test = "0.5.1"
 json = "*"
 http = "*"

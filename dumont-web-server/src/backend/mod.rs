@@ -33,7 +33,7 @@ pub enum ConstraintViolation {
 }
 
 pub struct DefaultBackend {
-    pub database: PostgresDatabase,
+    pub database: BackendDatabase,
     pub policy_container: RealizedPolicyContainer,
 }
 
@@ -48,7 +48,7 @@ impl DefaultBackend {
                 .unwrap_or_else(|_| "Policy failed to render".to_owned())
         );
         Ok(Self {
-            database: PostgresDatabase::new(db_connection_string).await?,
+            database: BackendDatabase::new(db_connection_string).await?,
             policy_container,
         })
     }
@@ -290,7 +290,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn policy_enforcement_repo_label_create() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -324,7 +324,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn policy_enforcement_repo_label_update() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -357,7 +357,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn policy_enforcement_version_label_create() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
@@ -401,7 +401,7 @@ mod integ_test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[serial]
     async fn policy_enforcement_version_label_update() {
-        let db = PostgresDatabase {
+        let db = BackendDatabase {
             db: setup_schema().await.unwrap(),
             date_time_provider: DateTimeProvider::RealDateTime,
         };
