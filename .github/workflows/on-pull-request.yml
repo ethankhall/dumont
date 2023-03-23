@@ -36,7 +36,7 @@ jobs:
             --cache-from type=registry,ref=ghcr.io/ethankhall/dumont-cache \
             --cache-from type=registry,ref=ghcr.io/ethankhall/dumont-cache:validate \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
-            --build-arg TEST_DB_HOST=postgres
+            --build-arg TEST_DB_HOST=postgres \
             --target check .
 
   create-release:
